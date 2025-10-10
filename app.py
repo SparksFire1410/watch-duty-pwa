@@ -1,91 +1,107 @@
 import re
-from flask import Flask, jsonify, request, render_template, send_from_directory
+from flask import Flask, jsonify, render_template
 from flask_cors import CORS
 from bs4 import BeautifulSoup
 import requests
 from apscheduler.schedulers.background import BackgroundScheduler
 from datetime import datetime
-import json
 
 app = Flask(__name__)
 CORS(app)
 
 fire_calls = []
 last_check_time = None
-all_calls_cache = []
+processed_audio_urls = set()
 
-FIRE_KEYWORDS = [
-    r'grass[\s_-]?fire',
-    r'brush[\s_-]?fire', 
-    r'wildland[\s_-]?fire',
-    r'wild[\s_-]?fire'
+FIRE_AGENCY_KEYWORDS = [
+    r'\bfire\b',
+    r'\bfd\b',
+    r'\bvfd\b',
+    r'fire[-_\s]?dept',
+    r'fire[-_\s]?department',
+    r'fire[-_\s]?rescue'
 ]
 
-US_STATES = [
-    "Alabama", "Alaska", "Arizona", "Arkansas", "California", "Colorado",
-    "Connecticut", "Delaware", "Florida", "Georgia", "Hawaii", "Idaho",
-    "Illinois", "Indiana", "Iowa", "Kansas", "Kentucky", "Louisiana",
-    "Maine", "Maryland", "Massachusetts", "Michigan", "Minnesota",
-    "Mississippi", "Missouri", "Montana", "Nebraska", "Nevada",
-    "New Hampshire", "New Jersey", "New Mexico", "New York",
-    "North Carolina", "North Dakota", "Ohio", "Oklahoma", "Oregon",
-    "Pennsylvania", "Rhode Island", "South Carolina", "South Dakota",
-    "Tennessee", "Texas", "Utah", "Vermont", "Virginia", "Washington",
-    "West Virginia", "Wisconsin", "Wyoming"
-]
+US_STATES = {
+    "AL": "Alabama", "AK": "Alaska", "AZ": "Arizona", "AR": "Arkansas",
+    "CA": "California", "CO": "Colorado", "CT": "Connecticut", "DE": "Delaware",
+    "FL": "Florida", "GA": "Georgia", "HI": "Hawaii", "ID": "Idaho",
+    "IL": "Illinois", "IN": "Indiana", "IA": "Iowa", "KS": "Kansas",
+    "KY": "Kentucky", "LA": "Louisiana", "ME": "Maine", "MD": "Maryland",
+    "MA": "Massachusetts", "MI": "Michigan", "MN": "Minnesota", "MS": "Mississippi",
+    "MO": "Missouri", "MT": "Montana", "NE": "Nebraska", "NV": "Nevada",
+    "NH": "New Hampshire", "NJ": "New Jersey", "NM": "New Mexico", "NY": "New York",
+    "NC": "North Carolina", "ND": "North Dakota", "OH": "Ohio", "OK": "Oklahoma",
+    "OR": "Oregon", "PA": "Pennsylvania", "RI": "Rhode Island", "SC": "South Carolina",
+    "SD": "South Dakota", "TN": "Tennessee", "TX": "Texas", "UT": "Utah",
+    "VT": "Vermont", "VA": "Virginia", "WA": "Washington", "WV": "West Virginia",
+    "WI": "Wisconsin", "WY": "Wyoming"
+}
 
-def is_fire_call(incident_type):
-    if not incident_type:
+def extract_state_from_location(location):
+    parts = location.split(',')
+    if len(parts) >= 2:
+        state_abbr = parts[-1].strip().upper()
+        return US_STATES.get(state_abbr, state_abbr)
+    return "Unknown"
+
+def is_fire_agency(agency_name):
+    if not agency_name:
         return False
     
-    incident_lower = incident_type.lower()
-    for pattern in FIRE_KEYWORDS:
-        if re.search(pattern, incident_lower):
+    agency_lower = agency_name.lower()
+    for pattern in FIRE_AGENCY_KEYWORDS:
+        if re.search(pattern, agency_lower):
             return True
     return False
 
 def scrape_dispatch_calls():
-    global fire_calls, last_check_time, all_calls_cache
+    global fire_calls, last_check_time, processed_audio_urls
+    
+    new_fire_calls_count = 0
     
     try:
-        url = "https://www.edispatches.com/call-log/"
+        url = "https://call-log-api.edispatches.com/calls/"
         response = requests.get(url, timeout=30)
         response.raise_for_status()
         
         soup = BeautifulSoup(response.content, 'html.parser')
         
-        new_calls = []
         table = soup.find('table')
         
         if table:
-            rows = table.find_all('tr')[1:]
+            rows = table.find_all('tr')
             
             for row in rows:
                 cols = row.find_all('td')
                 if len(cols) >= 4:
-                    timestamp = cols[0].text.strip()
-                    location = cols[1].text.strip()
-                    incident_type = cols[2].text.strip()
-                    state = cols[3].text.strip() if len(cols) > 3 else "Unknown"
-                    
-                    call_data = {
-                        'timestamp': timestamp,
-                        'location': location,
-                        'incident_type': incident_type,
-                        'state': state,
-                        'id': f"{timestamp}_{location}_{incident_type}"
-                    }
-                    
-                    new_calls.append(call_data)
-                    
-                    if is_fire_call(incident_type):
-                        if call_data['id'] not in [c['id'] for c in fire_calls]:
-                            fire_calls.insert(0, call_data)
+                    audio_tag = cols[0].find('audio')
+                    if audio_tag and audio_tag.get('src'):
+                        audio_url = audio_tag.get('src')
+                        agency = cols[1].text.strip()
+                        location = cols[2].text.strip()
+                        timestamp = cols[3].text.strip()
+                        state = extract_state_from_location(location)
+                        
+                        if audio_url not in processed_audio_urls:
+                            if is_fire_agency(agency):
+                                call_data = {
+                                    'audio_url': audio_url,
+                                    'agency': agency,
+                                    'location': location,
+                                    'state': state,
+                                    'timestamp': timestamp,
+                                    'id': audio_url
+                                }
+                                
+                                fire_calls.insert(0, call_data)
+                                new_fire_calls_count += 1
+                                print(f"🔥 FIRE CALL: {agency} - {location}")
+                            
+                            processed_audio_urls.add(audio_url)
         
-        all_calls_cache = new_calls
         last_check_time = datetime.utcnow().isoformat() + 'Z'
-        
-        print(f"Scraped {len(new_calls)} calls, {len([c for c in new_calls if is_fire_call(c['incident_type'])])} fire calls")
+        print(f"Scan complete. Found {new_fire_calls_count} new fire calls (Total: {len(fire_calls)})")
         
     except Exception as e:
         print(f"Error scraping dispatch calls: {e}")
@@ -103,24 +119,7 @@ def get_fire_calls():
 
 @app.route('/api/states')
 def get_states():
-    return jsonify({'states': US_STATES})
-
-@app.route('/api/mark-seen', methods=['POST'])
-def mark_seen():
-    data = request.json
-    call_id = data.get('call_id') if data else None
-    
-    for call in fire_calls:
-        if call['id'] == call_id:
-            call['seen'] = True
-    
-    return jsonify({'success': True})
-
-@app.route('/api/clear-old-calls', methods=['POST'])
-def clear_old_calls():
-    global fire_calls
-    fire_calls = [c for c in fire_calls if not c.get('seen', False)]
-    return jsonify({'success': True})
+    return jsonify({'states': list(US_STATES.values())})
 
 @app.route('/api/health')
 def health():
@@ -134,6 +133,7 @@ scheduler = BackgroundScheduler()
 scheduler.add_job(func=scrape_dispatch_calls, trigger="interval", seconds=60)
 scheduler.start()
 
+print("Starting initial scan...")
 scrape_dispatch_calls()
 
 if __name__ == '__main__':

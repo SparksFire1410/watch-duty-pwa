@@ -1,7 +1,7 @@
 # Edispatches monitor for Watch Duty
 
 ## Overview
-A Windows desktop alert application that monitors fire dispatch calls from edispatches.com. Built for watch duty purposes to track grass fires, brush fires, wildland fires, and wildfires across all US states.
+A web-based alert application that monitors fire department dispatch calls from edispatches.com. Built for watch duty purposes to track fire department calls across all US states.
 
 ## Project Purpose
 This application helps monitor emergency fire dispatch calls in real-time, with customizable state filtering and multiple alert mechanisms including visual, audio, and desktop notifications.
@@ -13,12 +13,12 @@ This application helps monitor emergency fire dispatch calls in real-time, with 
 - Frontend with real-time updates every 5 seconds
 
 ## Features
-- **Automated Web Scraping**: Checks edispatches.com/call-log/ every 60 seconds for new dispatch calls
-- **Fire Type Detection**: Case-insensitive matching for:
-  - Grass Fire (all variations: GrassFire, Grass_Fire, etc.)
-  - Brush Fire (all variations: Brushfire, Brush_Fire, etc.)
-  - Wildland Fire (all variations: WildlandFire, Wildland_Fire, etc.)
-  - Wildfire/Wild Fire (all variations)
+- **Automated Web Scraping**: Checks call-log-api.edispatches.com/calls/ every 60 seconds for new dispatch calls
+- **Fire Agency Detection**: Filters calls based on agency/department names containing fire-related keywords:
+  - Fire departments (containing "fire", "FD", "VFD")
+  - Fire rescue units (containing "firerescue", "fire rescue")
+  - Volunteer fire departments (VFD)
+  - All variations detected via regex patterns (case-insensitive)
 - **State Filtering**: Checkbox filter for all 50 US states with Select All/Deselect All options
 - **Visual Alerts**: Red blinking border animation when new fire calls are detected (5 second duration)
 - **Audio Alerts**: Web Audio API-generated beep sound (800Hz, 0.5 second duration)
@@ -32,9 +32,9 @@ This application helps monitor emergency fire dispatch calls in real-time, with 
 - Python 3.11
 - Flask (web framework)
 - Flask-CORS (cross-origin support)
-- Beautiful Soup 4 (HTML parsing)
+- Beautiful Soup 4 (HTML parsing for edispatches API)
 - Requests (HTTP requests)
-- APScheduler (background scheduling)
+- APScheduler (background scheduling - runs scraper every 60 seconds)
 
 ### Frontend
 - HTML5
@@ -79,13 +79,15 @@ This application helps monitor emergency fire dispatch calls in real-time, with 
 
 ## Recent Changes (October 10, 2025)
 - Initial project setup with Python environment and dependencies
-- Created Flask backend with web scraping functionality
-- Implemented fire call detection with regex patterns
-- Built responsive frontend UI with state filtering
-- Added visual alert system with CSS animations
-- Implemented audio alerts using Web Audio API
+- Created Flask backend with web scraping functionality from call-log-api.edispatches.com
+- **Changed approach**: Instead of audio transcription, now filters fire departments by agency name patterns (much faster and more reliable)
+- Implemented fire agency detection with regex patterns (fire, FD, VFD, etc.)
+- Built responsive frontend UI with state filtering for all 50 US states
+- Added visual alert system with red blinking border (CSS animations)
+- Implemented audio alerts using Web Audio API (800Hz beep sound)
 - Added desktop notifications and favicon blinking for minimized state
 - Configured workflow to run on port 5000
+- App successfully detects fire department calls instantly without audio processing
 
 ## API Endpoints
 
@@ -93,36 +95,52 @@ This application helps monitor emergency fire dispatch calls in real-time, with 
 Returns the main application HTML page
 
 ### `GET /api/fire-calls`
-Returns active fire calls and last check timestamp
+Returns active fire department calls and last check timestamp
 ```json
 {
-  "calls": [...],
-  "last_check": "2025-10-10T19:31:52.123456"
+  "calls": [
+    {
+      "audio_url": "https://audio.edispatches.com/play/...",
+      "agency": "Richmond_Fire",
+      "location": "Madison, KY",
+      "state": "Kentucky",
+      "timestamp": "2025-10-10 16:27:46",
+      "id": "https://audio.edispatches.com/play/..."
+    }
+  ],
+  "last_check": "2025-10-10T19:31:52.123456Z"
 }
 ```
 
 ### `GET /api/states`
 Returns list of all 50 US states
 
-### `POST /api/mark-seen`
-Marks a call as seen (for future tracking features)
-
-### `POST /api/clear-old-calls`
-Removes calls marked as seen
-
 ### `GET /api/health`
 Returns application health status
+```json
+{
+  "status": "running",
+  "last_check": "2025-10-10T19:31:52.123456Z",
+  "fire_calls_count": 7
+}
+```
 
 ## Configuration
 
 ### Scraping Interval
-Currently set to 60 seconds (configurable in `app.py` line 130)
+Currently set to 60 seconds (configurable in `app.py` scheduler section)
 
 ### Frontend Update Interval
-Currently set to 5 seconds (configurable in `static/app.js` line 259)
+Currently set to 5 seconds (configurable in `static/app.js` line 262)
 
-### Fire Type Patterns
-Defined in `app.py` lines 17-22, using regex patterns for flexible matching
+### Fire Agency Detection Patterns
+Defined in `app.py` as FIRE_AGENCY_KEYWORDS, using regex patterns for flexible matching:
+- `\bfire\b` - Matches "fire" as a whole word
+- `\bfd\b` - Matches "FD" (Fire Department)
+- `\bvfd\b` - Matches "VFD" (Volunteer Fire Department)
+- `fire[-_\s]?dept` - Matches fire department variations
+- `fire[-_\s]?department` - Matches full "fire department"
+- `fire[-_\s]?rescue` - Matches fire rescue units
 
 ## User Preferences
 - State filter preferences saved in browser localStorage
@@ -140,7 +158,9 @@ Defined in `app.py` lines 17-22, using regex patterns for flexible matching
 
 ## Notes for Development
 - Application uses Flask development server (suitable for local/personal use)
-- Web scraping depends on edispatches.com maintaining current HTML structure
-- Audio requires user interaction first (browser autoplay policy)
+- Web scraping depends on call-log-api.edispatches.com maintaining current HTML structure
+- **Detection method**: Filters by agency/department names instead of audio transcription (instant and reliable)
+- Audio alerts require user interaction first (browser autoplay policy)
 - Desktop notifications require user permission grant
 - Favicon blinking stops when window is restored to foreground
+- No external API costs - completely self-contained solution

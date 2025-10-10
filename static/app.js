@@ -180,7 +180,7 @@ function updateCallsDisplay(calls = []) {
         return `
             <div class="call-card ${isNew ? 'new' : ''}">
                 <div class="call-header">
-                    <div class="incident-type">${call.incident_type}</div>
+                    <div class="incident-type">${call.agency}</div>
                     <div class="timestamp">${call.timestamp}</div>
                 </div>
                 <div class="call-details">
@@ -228,7 +228,7 @@ async function checkForNewCalls() {
             if (Notification.permission === 'granted') {
                 newCalls.forEach(call => {
                     new Notification('🔥 New Fire Call!', {
-                        body: `${call.incident_type} - ${call.location}, ${call.state}`,
+                        body: `${call.agency} - ${call.location}, ${call.state}`,
                         icon: faviconRed,
                         tag: call.id
                     });
