@@ -184,6 +184,12 @@ header h1 {
     color: #ffa726;
 }
 
+#callsList {
+    max-height: 600px;
+    overflow-y: auto;
+    padding-right: 5px;
+}
+
 .call-card {
     background: rgba(255, 107, 107, 0.1);
     border-left: 4px solid #ff6b6b;
