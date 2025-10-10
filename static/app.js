@@ -205,7 +205,13 @@ async function checkForNewCalls() {
         
         if (data.last_check) {
             const lastCheckTime = new Date(data.last_check);
-            lastCheckEl.textContent = `Last check: ${lastCheckTime.toLocaleTimeString()}`;
+            const timeString = lastCheckTime.toLocaleString(undefined, {
+                hour: 'numeric',
+                minute: '2-digit',
+                second: '2-digit',
+                hour12: true
+            });
+            lastCheckEl.textContent = `Last check: ${timeString}`;
         }
         
         const filteredCalls = filterCallsByState(data.calls);
