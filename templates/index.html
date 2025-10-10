@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Watch Duty - Fire Call Monitor</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <link rel="icon" type="image/png" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFBQIAX8jx0gAAAABJRU5ErkJggg==">
+</head>
+<body>
+    <div class="alert-border" id="alertBorder"></div>
+    
+    <div class="container">
+        <header>
+            <h1>🔥 Watch Duty - Fire Call Monitor</h1>
+            <div class="status">
+                <span id="status">Checking...</span>
+                <span id="lastCheck">Last check: Never</span>
+            </div>
+        </header>
+
+        <div class="controls">
+            <div class="filter-section">
+                <h3>State Filter</h3>
+                <div class="state-controls">
+                    <button onclick="selectAllStates()">Select All</button>
+                    <button onclick="deselectAllStates()">Deselect All</button>
+                </div>
+                <div class="state-grid" id="stateGrid"></div>
+            </div>
+        </div>
+
+        <div class="calls-section">
+            <h2>Active Fire Calls <span id="callCount">(0)</span></h2>
+            <div id="callsList"></div>
+        </div>
+    </div>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>

@@ -1,5 +1,5 @@
 import re
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, render_template, send_from_directory
 from flask_cors import CORS
 from bs4 import BeautifulSoup
 import requests
@@ -90,6 +90,10 @@ def scrape_dispatch_calls():
     except Exception as e:
         print(f"Error scraping dispatch calls: {e}")
 
+@app.route('/')
+def index():
+    return render_template('index.html')
+
 @app.route('/api/fire-calls')
 def get_fire_calls():
     return jsonify({
@@ -104,7 +108,7 @@ def get_states():
 @app.route('/api/mark-seen', methods=['POST'])
 def mark_seen():
     data = request.json
-    call_id = data.get('call_id')
+    call_id = data.get('call_id') if data else None
     
     for call in fire_calls:
         if call['id'] == call_id:
