@@ -14,17 +14,19 @@ This application helps monitor emergency fire dispatch calls in real-time, with 
 
 ## Features
 - **Automated Web Scraping**: Checks call-log-api.edispatches.com/calls/ every 60 seconds for new dispatch calls
-- **Fire Agency Detection**: Filters calls based on agency/department names containing fire-related keywords:
-  - Fire departments (containing "fire", "FD", "VFD")
-  - Fire rescue units (containing "firerescue", "fire rescue")
-  - Volunteer fire departments (VFD)
-  - All variations detected via regex patterns (case-insensitive)
+- **Speech-to-Text Transcription**: Uses faster-whisper AI to transcribe dispatch audio and detect fire keywords
+  - Detects: grass fire, brush fire, wildland fire, wildfire (all variations)
+  - Filters out non-fire calls (EMS, medical, etc.) based on actual audio content
+- **Audio Re-checking**: Automatically re-checks recent calls (last 10 minutes) every minute to detect if full audio becomes available on edispatches.com
 - **State Filtering**: Checkbox filter for all 50 US states with Select All/Deselect All options
+- **Collapsible State Filter**: Minimize/expand state filter to maximize fire calls display area (preference saved)
 - **Visual Alerts**: Red blinking border animation when new fire calls are detected (5 second duration)
 - **Audio Alerts**: Web Audio API-generated beep sound (800Hz, 0.5 second duration)
 - **Desktop Notifications**: Browser-based notifications with call details
+- **Audio Playback**: Embedded audio player for each call to listen to dispatch audio
+- **Transcript Display**: Shows full AI-transcribed text from each dispatch call
 - **Favicon Blinking**: Red blinking favicon when window is minimized and alerts are active
-- **Persistent Preferences**: State filter selections saved to browser localStorage
+- **Persistent Preferences**: State filter selections and collapse state saved to browser localStorage
 
 ## Technology Stack
 

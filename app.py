@@ -7,7 +7,7 @@ from flask_cors import CORS
 from bs4 import BeautifulSoup
 import requests
 from apscheduler.schedulers.background import BackgroundScheduler
-from datetime import datetime
+from datetime import datetime, timedelta
 from faster_whisper import WhisperModel
 
 app = Flask(__name__)
@@ -94,6 +94,49 @@ def transcribe_audio_with_whisper(audio_url):
             os.unlink(tmp_path)
         return None
 
+def recheck_recent_calls():
+    """Re-check audio for calls detected in the last 10 minutes to see if full audio is available"""
+    global fire_calls
+    
+    if not processing_lock.acquire(blocking=False):
+        print("Re-check skipped - scan in progress")
+        return
+    
+    try:
+        now = datetime.utcnow()
+        cutoff_time = now - timedelta(minutes=10)
+        
+        updated_count = 0
+        
+        for call in fire_calls:
+            # Check if this call is less than 10 minutes old
+            if 'first_detected' in call:
+                first_detected = datetime.fromisoformat(call['first_detected'].replace('Z', '+00:00'))
+                if first_detected > cutoff_time:
+                    # Re-transcribe to check for updated audio
+                    print(f"Re-checking audio for {call['agency']} at {call['location']}")
+                    new_transcript = transcribe_audio_with_whisper(call['audio_url'])
+                    
+                    # Update if we got a better/different transcript
+                    if new_transcript and new_transcript != call.get('transcript', ''):
+                        old_length = len(call.get('transcript', ''))
+                        new_length = len(new_transcript)
+                        
+                        if new_length > old_length:
+                            call['transcript'] = new_transcript
+                            updated_count += 1
+                            print(f"✓ Updated transcript for {call['agency']} ({old_length} -> {new_length} chars)")
+        
+        if updated_count > 0:
+            print(f"Re-check complete. Updated {updated_count} calls with better audio")
+        else:
+            print("Re-check complete. No updates needed")
+            
+    except Exception as e:
+        print(f"Error during re-check: {e}")
+    finally:
+        processing_lock.release()
+
 def scrape_dispatch_calls():
     global fire_calls, last_check_time, processed_audio_urls
     
@@ -152,6 +195,7 @@ def scrape_dispatch_calls():
                         'state': call_info['state'],
                         'timestamp': call_info['timestamp'],
                         'transcript': transcript,
+                        'first_detected': datetime.utcnow().isoformat() + 'Z',
                         'id': call_info['audio_url']
                     }
                     
@@ -199,6 +243,7 @@ def health():
 
 scheduler = BackgroundScheduler()
 scheduler.add_job(func=scrape_dispatch_calls, trigger="interval", seconds=60)
+scheduler.add_job(func=recheck_recent_calls, trigger="interval", seconds=60)
 scheduler.start()
 
 # Run initial scan in background thread so app can start
