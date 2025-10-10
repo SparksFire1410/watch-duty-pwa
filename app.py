@@ -83,7 +83,7 @@ def scrape_dispatch_calls():
                             fire_calls.insert(0, call_data)
         
         all_calls_cache = new_calls
-        last_check_time = datetime.now().isoformat()
+        last_check_time = datetime.utcnow().isoformat() + 'Z'
         
         print(f"Scraped {len(new_calls)} calls, {len([c for c in new_calls if is_fire_call(c['incident_type'])])} fire calls")
         
