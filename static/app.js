@@ -187,6 +187,15 @@ function updateCallsDisplay(calls = []) {
                     <div class="location">📍 ${call.location}</div>
                     <span class="state-badge">${call.state}</span>
                 </div>
+                ${call.transcript ? `<div class="transcript">📝 ${call.transcript}</div>` : ''}
+                ${call.audio_url ? `
+                    <div class="audio-player">
+                        <audio controls preload="none">
+                            <source src="${call.audio_url}" type="audio/mpeg">
+                            Your browser does not support audio playback.
+                        </audio>
+                    </div>
+                ` : ''}
             </div>
         `;
     }).join('');

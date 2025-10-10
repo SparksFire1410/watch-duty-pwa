@@ -80,14 +80,17 @@ This application helps monitor emergency fire dispatch calls in real-time, with 
 ## Recent Changes (October 10, 2025)
 - Initial project setup with Python environment and dependencies
 - Created Flask backend with web scraping functionality from call-log-api.edispatches.com
-- **Changed approach**: Instead of audio transcription, now filters fire departments by agency name patterns (much faster and more reliable)
-- Implemented fire agency detection with regex patterns (fire, FD, VFD, etc.)
+- **Updated to Whisper transcription**: Uses faster-whisper (self-hosted) for accurate speech-to-text
+- Implemented fire keyword detection from audio transcripts (grass fire, brush fire, wildland fire, wildfire)
 - Built responsive frontend UI with state filtering for all 50 US states
 - Added visual alert system with red blinking border (CSS animations)
 - Implemented audio alerts using Web Audio API (800Hz beep sound)
 - Added desktop notifications and favicon blinking for minimized state
+- **Added audio player**: Users can listen to dispatch audio directly in the app
+- **Added transcript display**: Shows detected speech-to-text transcription for each call
+- Optimized processing: Background threading, processes max 5 calls at a time
+- Uses faster-whisper library (4x faster than original Whisper, runs on CPU)
 - Configured workflow to run on port 5000
-- App successfully detects fire department calls instantly without audio processing
 
 ## API Endpoints
 

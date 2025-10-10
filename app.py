@@ -1,25 +1,34 @@
 import re
+import os
+import tempfile
+import threading
 from flask import Flask, jsonify, render_template
 from flask_cors import CORS
 from bs4 import BeautifulSoup
 import requests
 from apscheduler.schedulers.background import BackgroundScheduler
 from datetime import datetime
+from faster_whisper import WhisperModel
 
 app = Flask(__name__)
 CORS(app)
 
+# Initialize Whisper model (small model for faster processing)
+# Using int8 quantization for CPU efficiency
+print("Loading Whisper model...")
+whisper_model = WhisperModel("small", device="cpu", compute_type="int8")
+print("Whisper model loaded successfully")
+
 fire_calls = []
 last_check_time = None
 processed_audio_urls = set()
+processing_lock = threading.Lock()
 
-FIRE_AGENCY_KEYWORDS = [
-    r'\bfire\b',
-    r'\bfd\b',
-    r'\bvfd\b',
-    r'fire[-_\s]?dept',
-    r'fire[-_\s]?department',
-    r'fire[-_\s]?rescue'
+FIRE_KEYWORDS = [
+    r'grass[\s_-]?fire',
+    r'brush[\s_-]?fire', 
+    r'wildland[\s_-]?fire',
+    r'wild[\s_-]?fire'
 ]
 
 US_STATES = {
@@ -45,22 +54,57 @@ def extract_state_from_location(location):
         return US_STATES.get(state_abbr, state_abbr)
     return "Unknown"
 
-def is_fire_agency(agency_name):
-    if not agency_name:
+def is_fire_call_in_transcript(transcript):
+    if not transcript:
         return False
     
-    agency_lower = agency_name.lower()
-    for pattern in FIRE_AGENCY_KEYWORDS:
-        if re.search(pattern, agency_lower):
+    transcript_lower = transcript.lower()
+    for pattern in FIRE_KEYWORDS:
+        if re.search(pattern, transcript_lower):
             return True
     return False
+
+def transcribe_audio_with_whisper(audio_url):
+    tmp_path = None
+    
+    try:
+        response = requests.get(audio_url, timeout=30)
+        response.raise_for_status()
+        
+        with tempfile.NamedTemporaryFile(suffix='.mp3', delete=False) as tmp_file:
+            tmp_file.write(response.content)
+            tmp_path = tmp_file.name
+        
+        segments, info = whisper_model.transcribe(tmp_path, beam_size=5, language="en")
+        
+        transcript_parts = []
+        for segment in segments:
+            transcript_parts.append(segment.text)
+        
+        transcript = " ".join(transcript_parts).strip()
+        
+        if tmp_path and os.path.exists(tmp_path):
+            os.unlink(tmp_path)
+            
+        return transcript
+        
+    except Exception as e:
+        print(f"Transcription error for {audio_url}: {e}")
+        if tmp_path and os.path.exists(tmp_path):
+            os.unlink(tmp_path)
+        return None
 
 def scrape_dispatch_calls():
     global fire_calls, last_check_time, processed_audio_urls
     
-    new_fire_calls_count = 0
+    # Use lock to prevent concurrent execution
+    if not processing_lock.acquire(blocking=False):
+        print("Scan already in progress, skipping...")
+        return
     
     try:
+        new_fire_calls_count = 0
+        
         url = "https://call-log-api.edispatches.com/calls/"
         response = requests.get(url, timeout=30)
         response.raise_for_status()
@@ -71,8 +115,10 @@ def scrape_dispatch_calls():
         
         if table:
             rows = table.find_all('tr')
+            new_calls_to_process = []
             
-            for row in rows:
+            # First pass: collect new calls
+            for row in rows[:20]:  # Limit to first 20 rows to avoid overload
                 cols = row.find_all('td')
                 if len(cols) >= 4:
                     audio_tag = cols[0].find('audio')
@@ -84,27 +130,45 @@ def scrape_dispatch_calls():
                         state = extract_state_from_location(location)
                         
                         if audio_url not in processed_audio_urls:
-                            if is_fire_agency(agency):
-                                call_data = {
-                                    'audio_url': audio_url,
-                                    'agency': agency,
-                                    'location': location,
-                                    'state': state,
-                                    'timestamp': timestamp,
-                                    'id': audio_url
-                                }
-                                
-                                fire_calls.insert(0, call_data)
-                                new_fire_calls_count += 1
-                                print(f"🔥 FIRE CALL: {agency} - {location}")
-                            
-                            processed_audio_urls.add(audio_url)
+                            new_calls_to_process.append({
+                                'audio_url': audio_url,
+                                'agency': agency,
+                                'location': location,
+                                'state': state,
+                                'timestamp': timestamp
+                            })
+            
+            # Second pass: transcribe and filter (limit to 5 at a time)
+            for call_info in new_calls_to_process[:5]:
+                print(f"Processing new call from {call_info['agency']} at {call_info['location']}")
+                
+                transcript = transcribe_audio_with_whisper(call_info['audio_url'])
+                
+                if transcript and is_fire_call_in_transcript(transcript):
+                    call_data = {
+                        'audio_url': call_info['audio_url'],
+                        'agency': call_info['agency'],
+                        'location': call_info['location'],
+                        'state': call_info['state'],
+                        'timestamp': call_info['timestamp'],
+                        'transcript': transcript,
+                        'id': call_info['audio_url']
+                    }
+                    
+                    fire_calls.insert(0, call_data)
+                    new_fire_calls_count += 1
+                    print(f"🔥 FIRE CALL DETECTED: {call_info['agency']} - {call_info['location']}")
+                    print(f"   Transcript: {transcript[:100]}...")
+                
+                processed_audio_urls.add(call_info['audio_url'])
         
         last_check_time = datetime.utcnow().isoformat() + 'Z'
         print(f"Scan complete. Found {new_fire_calls_count} new fire calls (Total: {len(fire_calls)})")
         
     except Exception as e:
         print(f"Error scraping dispatch calls: {e}")
+    finally:
+        processing_lock.release()
 
 @app.route('/')
 def index():
@@ -133,8 +197,9 @@ scheduler = BackgroundScheduler()
 scheduler.add_job(func=scrape_dispatch_calls, trigger="interval", seconds=60)
 scheduler.start()
 
-print("Starting initial scan...")
-scrape_dispatch_calls()
+# Run initial scan in background thread so app can start
+print("Starting initial scan in background...")
+threading.Thread(target=scrape_dispatch_calls, daemon=True).start()
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=False)
