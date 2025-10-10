@@ -1,4 +1,4 @@
-# Watch Duty - Fire Call Monitor
+# Edispatches monitor for Watch Duty
 
 ## Overview
 A Windows desktop alert application that monitors fire dispatch calls from edispatches.com. Built for watch duty purposes to track grass fires, brush fires, wildland fires, and wildfires across all US states.
