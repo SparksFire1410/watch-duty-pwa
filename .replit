@@ -5,6 +5,7 @@ integrations = ["web_scraper:1.0.0"]
 
 [nix]
 channel = "stable-25_05"
+packages = ["ffmpeg", "ffmpeg-full"]
 
 [workflows]
 runButton = "Project"
