@@ -72,9 +72,50 @@ header h1 {
     backdrop-filter: blur(10px);
 }
 
-.filter-section h3 {
+.filter-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
     margin-bottom: 10px;
+}
+
+.filter-section h3 {
+    margin: 0;
     color: #ffa726;
+}
+
+.collapse-btn {
+    padding: 6px 12px;
+    background: rgba(255, 167, 38, 0.2);
+    color: #ffa726;
+    border: 1px solid #ffa726;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 0.85em;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.collapse-btn:hover {
+    background: rgba(255, 167, 38, 0.3);
+}
+
+#collapseIcon {
+    transition: transform 0.3s ease;
+}
+
+.filter-content {
+    max-height: 400px;
+    overflow: hidden;
+    transition: max-height 0.3s ease, opacity 0.3s ease;
+    opacity: 1;
+}
+
+.filter-content.collapsed {
+    max-height: 0;
+    opacity: 0;
 }
 
 .state-controls {

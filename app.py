@@ -172,7 +172,11 @@ def scrape_dispatch_calls():
 
 @app.route('/')
 def index():
-    return render_template('index.html')
+    response = app.make_response(render_template('index.html'))
+    response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+    response.headers['Pragma'] = 'no-cache'
+    response.headers['Expires'] = '0'
+    return response
 
 @app.route('/api/fire-calls')
 def get_fire_calls():

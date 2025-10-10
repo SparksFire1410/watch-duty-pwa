@@ -4,6 +4,7 @@ let isAlertActive = false;
 let alertBorder = null;
 let alertSound = null;
 let faviconBlinkInterval = null;
+let filterCollapsed = false;
 
 const faviconRed = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFBQIAX8jx0gAAAABJRU5ErkJggg==';
 const faviconNormal = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M/wHwAEBgIApD5fRAAAAABJRU5ErkJggg==';
@@ -14,6 +15,40 @@ function loadSelectedStates() {
         selectedStates = new Set(JSON.parse(saved));
     } else {
         selectedStates = new Set();
+    }
+}
+
+function toggleStateFilter() {
+    const filterContent = document.getElementById('filterContent');
+    const collapseIcon = document.getElementById('collapseIcon');
+    const collapseBtn = document.getElementById('collapseBtn');
+    
+    filterCollapsed = !filterCollapsed;
+    
+    if (filterCollapsed) {
+        filterContent.classList.add('collapsed');
+        collapseIcon.textContent = '▶';
+        collapseBtn.innerHTML = '<span id="collapseIcon">▶</span> Expand';
+    } else {
+        filterContent.classList.remove('collapsed');
+        collapseIcon.textContent = '▼';
+        collapseBtn.innerHTML = '<span id="collapseIcon">▼</span> Minimize';
+    }
+    
+    localStorage.setItem('filterCollapsed', filterCollapsed);
+}
+
+function loadFilterState() {
+    const saved = localStorage.getItem('filterCollapsed');
+    if (saved === 'true') {
+        filterCollapsed = true;
+        const filterContent = document.getElementById('filterContent');
+        const collapseIcon = document.getElementById('collapseIcon');
+        const collapseBtn = document.getElementById('collapseBtn');
+        
+        filterContent.classList.add('collapsed');
+        collapseIcon.textContent = '▶';
+        collapseBtn.innerHTML = '<span id="collapseIcon">▶</span> Expand';
     }
 }
 
@@ -263,6 +298,7 @@ function requestNotificationPermission() {
 
 function initializeApp() {
     loadSelectedStates();
+    loadFilterState();
     loadStates();
     
     requestNotificationPermission();

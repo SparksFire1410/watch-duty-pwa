@@ -19,14 +19,21 @@
             </div>
         </header>
 
-        <div class="controls">
+        <div class="controls" id="controlsSection">
             <div class="filter-section">
-                <h3>State Filter</h3>
-                <div class="state-controls">
-                    <button onclick="selectAllStates()">Select All</button>
-                    <button onclick="deselectAllStates()">Deselect All</button>
+                <div class="filter-header">
+                    <h3>State Filter</h3>
+                    <button class="collapse-btn" onclick="toggleStateFilter()" id="collapseBtn">
+                        <span id="collapseIcon">▼</span> Minimize
+                    </button>
                 </div>
-                <div class="state-grid" id="stateGrid"></div>
+                <div class="filter-content" id="filterContent">
+                    <div class="state-controls">
+                        <button onclick="selectAllStates()">Select All</button>
+                        <button onclick="deselectAllStates()">Deselect All</button>
+                    </div>
+                    <div class="state-grid" id="stateGrid"></div>
+                </div>
             </div>
         </div>
 
