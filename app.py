@@ -352,7 +352,7 @@ def recheck_recent_calls():
         processing_lock.release()
 
 def scrape_dispatch_calls(max_rows=60, is_initial_scan=False):
-    """Scan for new calls - keep only last 20 calls per state within last hour"""
+    """Scan for new calls - keep only last 20 calls per state (timezone-safe)"""
     global check_start_time, check_finish_time, processed_audio_urls, state_call_tracking
     
     try:
@@ -369,7 +369,6 @@ def scrape_dispatch_calls(max_rows=60, is_initial_scan=False):
         
         if table:
             rows = table.find_all('tr')
-            one_hour_ago = datetime.utcnow() - timedelta(hours=1)
             
             # Scan last 60 calls
             scan_limit = max_rows
@@ -402,13 +401,11 @@ def scrape_dispatch_calls(max_rows=60, is_initial_scan=False):
                             processed_audio_urls.add(audio_url)
                             continue
                         
-                        # Parse timestamp to check if within last hour
+                        # Parse timestamp for sorting (no time filtering since timestamps are in local time zones)
                         try:
                             call_time = datetime.strptime(timestamp_str, '%Y-%m-%d %H:%M:%S')
-                            if call_time < one_hour_ago:
-                                continue  # Skip calls older than 1 hour
                         except:
-                            # If can't parse, include it anyway
+                            # If can't parse, use current time for sorting
                             call_time = datetime.utcnow()
                         
                         call_info = {

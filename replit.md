@@ -15,7 +15,7 @@ This application helps monitor emergency fire dispatch calls in real-time, with 
 ## Features
 - **Initial Scan**: Checks last 60 calls on startup/restart for any fire-related dispatches
 - **Automated Web Scraping**: Checks call-log-api.edispatches.com/calls/ every 60 seconds for new dispatch calls
-- **Queue System**: Smart state-based queue - keeps only the last 20 calls per selected state within the last hour to prevent queue overflow
+- **Queue System**: Smart state-based queue - keeps only the last 20 calls per selected state from the most recent 60 calls (timezone-safe, no time filtering)
 - **State-Based Filtering**: Queue only processes calls from selected states - deselecting states immediately removes those calls from the queue
 - **EMS Agency Filtering**: CONSERVATIVE filtering - only skips agencies that are CLEARLY EMS-only (County_EMS, Ambulance_Service, MedicUnit) BEFORE entering queue. Ambiguous names (Station_20, Saltillo_9, AntrimAmb) always enter queue for transcription - when in doubt, transcribe it
 - **Speech-to-Text Transcription**: Uses faster-whisper AI to transcribe dispatch audio and detect fire keywords
@@ -113,8 +113,9 @@ This application helps monitor emergency fire dispatch calls in real-time, with 
 - **Improved audio alerts**: Audio context initialized on first user interaction for reliable sound playback
 - **Mobile-responsive design**: Optimized layout and touch-friendly controls for phones and tablets
 - **Optimized Whisper model**: Uses "small" model for better transcription accuracy
-- **Smart queue system**: State-based queue limiting - keeps only last 20 calls per selected state within last hour to prevent queue overflow (max 80 calls with 4 states selected)
+- **Smart queue system**: State-based queue limiting - keeps only last 20 calls per selected state from most recent 60 calls (timezone-safe, max 80 calls with 4 states selected)
 - **State-based filtering**: Queue automatically rebuilds when states are selected/deselected
+- **Timezone fix**: Removed time-based filtering to prevent missing calls from different US time zones (relies on feed recency instead)
 - **Queue counter display**: Real-time visual indicator in banner showing number of calls waiting to be processed
 - **25-second transcription limit**: Audio is trimmed to 25 seconds before transcription for 3x faster processing (full audio kept for playback)
 - **Increased scan depth**: Now checks last 60 calls on every scan (previously 50) to ensure no calls are missed
