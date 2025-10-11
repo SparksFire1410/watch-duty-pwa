@@ -94,6 +94,48 @@ def transcribe_audio_with_whisper(audio_url):
             os.unlink(tmp_path)
         return None
 
+def cleanup_old_calls():
+    """Remove calls older than 1 hour, but always keep the last 5 calls"""
+    global fire_calls
+    
+    if len(fire_calls) <= 5:
+        return
+    
+    try:
+        now = datetime.utcnow()
+        one_hour_ago = now - timedelta(hours=1)
+        
+        # Separate calls into old and recent
+        old_calls = []
+        recent_calls = []
+        
+        for call in fire_calls:
+            if 'first_detected' in call:
+                first_detected = datetime.fromisoformat(call['first_detected'].replace('Z', '+00:00'))
+                if first_detected < one_hour_ago:
+                    old_calls.append(call)
+                else:
+                    recent_calls.append(call)
+        
+        # Keep recent calls + the last 5 total (even if old)
+        calls_to_keep = recent_calls + fire_calls[-5:]
+        
+        # Remove duplicates while preserving order
+        seen_ids = set()
+        unique_calls = []
+        for call in calls_to_keep:
+            if call['id'] not in seen_ids:
+                seen_ids.add(call['id'])
+                unique_calls.append(call)
+        
+        removed_count = len(fire_calls) - len(unique_calls)
+        if removed_count > 0:
+            fire_calls = unique_calls
+            print(f"Cleaned up {removed_count} old calls (keeping {len(fire_calls)} calls)")
+    
+    except Exception as e:
+        print(f"Error during cleanup: {e}")
+
 def recheck_recent_calls():
     """Re-check audio for calls detected in the last 10 minutes to see if full audio is available"""
     global fire_calls
@@ -131,6 +173,9 @@ def recheck_recent_calls():
             print(f"Re-check complete. Updated {updated_count} calls with better audio")
         else:
             print("Re-check complete. No updates needed")
+        
+        # Clean up old calls after re-check
+        cleanup_old_calls()
             
     except Exception as e:
         print(f"Error during re-check: {e}")
@@ -240,6 +285,19 @@ def health():
         'last_check': last_check_time,
         'fire_calls_count': len(fire_calls)
     })
+
+@app.route('/api/fire-calls/<path:call_id>', methods=['DELETE'])
+def delete_fire_call(call_id):
+    global fire_calls
+    
+    # Find and remove the call with the matching ID
+    original_count = len(fire_calls)
+    fire_calls = [call for call in fire_calls if call['id'] != call_id]
+    
+    if len(fire_calls) < original_count:
+        return jsonify({'success': True, 'message': 'Call dismissed'})
+    else:
+        return jsonify({'success': False, 'message': 'Call not found'}), 404
 
 scheduler = BackgroundScheduler()
 scheduler.add_job(func=scrape_dispatch_calls, trigger="interval", seconds=60)

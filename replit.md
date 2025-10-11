@@ -18,8 +18,11 @@ This application helps monitor emergency fire dispatch calls in real-time, with 
   - Detects: grass fire, brush fire, wildland fire, wildfire (all variations)
   - Filters out non-fire calls (EMS, medical, etc.) based on actual audio content
 - **Audio Re-checking**: Automatically re-checks recent calls (last 10 minutes) every minute to detect if full audio becomes available on edispatches.com
+- **Smart Call Retention**: Calls stay visible for minimum 1 hour, last 5 calls kept indefinitely
+- **Manual Dismissal**: X button in upper right corner of each call for manual removal
 - **State Filtering**: Checkbox filter for all 50 US states with Select All/Deselect All options
 - **Collapsible State Filter**: Minimize/expand state filter to maximize fire calls display area (preference saved)
+- **Scrollable Call List**: View multiple active fire calls with smooth scrolling (600px max-height)
 - **Visual Alerts**: Red blinking border animation when new fire calls are detected (5 second duration)
 - **Audio Alerts**: Web Audio API-generated beep sound (800Hz, 0.5 second duration)
 - **Desktop Notifications**: Browser-based notifications with call details
@@ -79,7 +82,7 @@ This application helps monitor emergency fire dispatch calls in real-time, with 
    - Desktop notifications show call details
    - When minimized, favicon blinks red until window is restored
 
-## Recent Changes (October 10, 2025)
+## Recent Changes (October 11, 2025)
 - Initial project setup with Python environment and dependencies
 - Created Flask backend with web scraping functionality from call-log-api.edispatches.com
 - **Updated to Whisper transcription**: Uses faster-whisper (self-hosted) for accurate speech-to-text
@@ -92,6 +95,9 @@ This application helps monitor emergency fire dispatch calls in real-time, with 
 - **Added transcript display**: Shows detected speech-to-text transcription for each call
 - Optimized processing: Background threading, processes max 5 calls at a time
 - Uses faster-whisper library (4x faster than original Whisper, runs on CPU)
+- **Call retention system**: Calls stay for minimum 1 hour, last 5 calls kept indefinitely
+- **Manual dismissal**: X button in upper right corner of each call to dismiss manually
+- **Scrollable calls list**: Can scroll through multiple active fire calls (600px max-height)
 - Configured workflow to run on port 5000
 
 ## API Endpoints

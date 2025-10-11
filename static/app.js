@@ -196,6 +196,23 @@ function filterCallsByState(calls) {
     return calls.filter(call => selectedStates.has(call.state));
 }
 
+async function dismissCall(callId) {
+    try {
+        const response = await fetch(`/api/fire-calls/${encodeURIComponent(callId)}`, {
+            method: 'DELETE'
+        });
+        
+        if (response.ok) {
+            knownCallIds.delete(callId);
+            checkForNewCalls();
+        } else {
+            console.error('Failed to dismiss call');
+        }
+    } catch (error) {
+        console.error('Error dismissing call:', error);
+    }
+}
+
 function updateCallsDisplay(calls = []) {
     const callsList = document.getElementById('callsList');
     const callCount = document.getElementById('callCount');
@@ -213,7 +230,8 @@ function updateCallsDisplay(calls = []) {
         const isNew = !knownCallIds.has(call.id);
         
         return `
-            <div class="call-card ${isNew ? 'new' : ''}">
+            <div class="call-card ${isNew ? 'new' : ''}" data-call-id="${call.id}">
+                <button class="dismiss-btn" onclick="dismissCall('${call.id.replace(/'/g, "\\'")}')">✕</button>
                 <div class="call-header">
                     <div class="incident-type">${call.agency}</div>
                     <div class="timestamp">${call.timestamp}</div>
