@@ -70,9 +70,21 @@ def is_fire_call_in_transcript(transcript):
         return False
     
     transcript_lower = transcript.lower()
+    
+    # Check standard fire keywords
     for pattern in FIRE_KEYWORDS:
         if re.search(pattern, transcript_lower):
             return True
+    
+    # Special case: "out of control burn" (any variation)
+    if re.search(r'out[\s_-]?of[\s_-]?control[\s_-]?burn', transcript_lower):
+        return True
+    
+    # Special case: If "controlled burn" is mentioned, "out of control" must also be present
+    if re.search(r'controlled[\s_-]?burn', transcript_lower):
+        if re.search(r'out[\s_-]?of[\s_-]?control', transcript_lower):
+            return True
+    
     return False
 
 def transcribe_audio_with_whisper(audio_url):
