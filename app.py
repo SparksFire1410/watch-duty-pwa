@@ -39,7 +39,9 @@ FIRE_KEYWORDS = [
     r'tree[\s_-]?fire',
     r'bushes?[\s_-]?on[\s_-]?fire',
     r'bush[\s_-]?on[\s_-]?fire',
-    r'bush[\s_-]?fire'
+    r'bush[\s_-]?fire',
+    r'controlled[\s_-]?burn',
+    r'\bsmoke\b'
 ]
 
 US_STATES = {
@@ -71,7 +73,7 @@ def is_fire_call_in_transcript(transcript):
     
     transcript_lower = transcript.lower()
     
-    # Check standard fire keywords
+    # Check all fire keywords
     for pattern in FIRE_KEYWORDS:
         if re.search(pattern, transcript_lower):
             return True
@@ -79,11 +81,6 @@ def is_fire_call_in_transcript(transcript):
     # Special case: "out of control burn" (any variation)
     if re.search(r'out[\s_-]?of[\s_-]?control[\s_-]?burn', transcript_lower):
         return True
-    
-    # Special case: If "controlled burn" is mentioned, "out of control" must also be present
-    if re.search(r'controlled[\s_-]?burn', transcript_lower):
-        if re.search(r'out[\s_-]?of[\s_-]?control', transcript_lower):
-            return True
     
     return False
 
