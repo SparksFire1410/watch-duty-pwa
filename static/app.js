@@ -3,8 +3,10 @@ let knownCallIds = new Set();
 let highlightedCalls = new Set();
 let isAlertActive = false;
 let alertBorder = null;
-let alertSound = null;
+let audioContext = null;
 let faviconBlinkInterval = null;
+let faviconSolidTimeout = null;
+let tabHasAlert = false;
 let filterCollapsed = false;
 
 const faviconRed = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFBQIAX8jx0gAAAABJRU5ErkJggg==';
@@ -50,6 +52,15 @@ function loadFilterState() {
         filterContent.classList.add('collapsed');
         collapseIcon.textContent = '▶';
         collapseBtn.innerHTML = '<span id="collapseIcon">▶</span> Expand';
+    }
+}
+
+function initAudioContext() {
+    if (!audioContext) {
+        audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    if (audioContext.state === 'suspended') {
+        audioContext.resume();
     }
 }
 
@@ -118,28 +129,39 @@ async function loadStates() {
 }
 
 function playAlertSound() {
-    const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-    const oscillator = audioContext.createOscillator();
-    const gainNode = audioContext.createGain();
-    
-    oscillator.connect(gainNode);
-    gainNode.connect(audioContext.destination);
-    
-    oscillator.frequency.value = 800;
-    oscillator.type = 'sine';
-    
-    gainNode.gain.setValueAtTime(0, audioContext.currentTime);
-    gainNode.gain.linearRampToValueAtTime(0.3, audioContext.currentTime + 0.1);
-    gainNode.gain.linearRampToValueAtTime(0.3, audioContext.currentTime + 0.4);
-    gainNode.gain.linearRampToValueAtTime(0, audioContext.currentTime + 0.5);
-    
-    oscillator.start(audioContext.currentTime);
-    oscillator.stop(audioContext.currentTime + 0.5);
-    
-    setTimeout(() => {
-        oscillator.disconnect();
-        gainNode.disconnect();
-    }, 600);
+    try {
+        if (!audioContext) {
+            audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        }
+        
+        if (audioContext.state === 'suspended') {
+            audioContext.resume();
+        }
+        
+        const oscillator = audioContext.createOscillator();
+        const gainNode = audioContext.createGain();
+        
+        oscillator.connect(gainNode);
+        gainNode.connect(audioContext.destination);
+        
+        oscillator.frequency.value = 800;
+        oscillator.type = 'sine';
+        
+        gainNode.gain.setValueAtTime(0, audioContext.currentTime);
+        gainNode.gain.linearRampToValueAtTime(0.3, audioContext.currentTime + 0.1);
+        gainNode.gain.linearRampToValueAtTime(0.3, audioContext.currentTime + 0.4);
+        gainNode.gain.linearRampToValueAtTime(0, audioContext.currentTime + 0.5);
+        
+        oscillator.start(audioContext.currentTime);
+        oscillator.stop(audioContext.currentTime + 0.5);
+        
+        setTimeout(() => {
+            oscillator.disconnect();
+            gainNode.disconnect();
+        }, 600);
+    } catch (error) {
+        console.error('Error playing alert sound:', error);
+    }
 }
 
 function startVisualAlert() {
@@ -159,29 +181,53 @@ function startVisualAlert() {
 }
 
 function startFaviconBlink() {
-    if (faviconBlinkInterval) return;
+    const favicon = document.querySelector("link[rel*='icon']");
+    
+    if (faviconBlinkInterval) {
+        clearInterval(faviconBlinkInterval);
+    }
+    if (faviconSolidTimeout) {
+        clearTimeout(faviconSolidTimeout);
+    }
     
     let isRed = false;
-    const favicon = document.querySelector("link[rel*='icon']");
+    tabHasAlert = true;
     
     faviconBlinkInterval = setInterval(() => {
         isRed = !isRed;
         favicon.href = isRed ? faviconRed : faviconNormal;
     }, 500);
+    
+    faviconSolidTimeout = setTimeout(() => {
+        clearInterval(faviconBlinkInterval);
+        faviconBlinkInterval = null;
+        favicon.href = faviconRed;
+    }, 5000);
 }
 
-function stopFaviconBlink() {
+function clearFaviconAlert() {
     if (faviconBlinkInterval) {
         clearInterval(faviconBlinkInterval);
         faviconBlinkInterval = null;
-        const favicon = document.querySelector("link[rel*='icon']");
-        favicon.href = faviconNormal;
     }
+    if (faviconSolidTimeout) {
+        clearTimeout(faviconSolidTimeout);
+        faviconSolidTimeout = null;
+    }
+    
+    const favicon = document.querySelector("link[rel*='icon']");
+    favicon.href = faviconNormal;
+    tabHasAlert = false;
 }
+
+document.addEventListener('click', () => {
+    if (tabHasAlert) {
+        clearFaviconAlert();
+    }
+});
 
 document.addEventListener('visibilitychange', () => {
     if (!document.hidden) {
-        stopFaviconBlink();
         if (alertBorder && isAlertActive) {
             alertBorder.classList.remove('blinking');
             isAlertActive = false;
@@ -311,10 +357,7 @@ async function checkForNewCalls() {
             
             playAlertSound();
             startVisualAlert();
-            
-            if (document.hidden) {
-                startFaviconBlink();
-            }
+            startFaviconBlink();
             
             if (Notification.permission === 'granted') {
                 newCalls.forEach(call => {
@@ -349,6 +392,9 @@ function initializeApp() {
     loadStates();
     
     requestNotificationPermission();
+    
+    document.addEventListener('click', initAudioContext, { once: true });
+    document.addEventListener('keydown', initAudioContext, { once: true });
     
     checkForNewCalls();
     setInterval(checkForNewCalls, 5000);

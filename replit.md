@@ -84,9 +84,10 @@ This application helps monitor emergency fire dispatch calls in real-time, with 
 
 5. **Alert System**:
    - Screen border blinks red for 5 seconds when new calls appear
-   - Audio beep plays for new calls
+   - Audio beep plays for new calls (requires initial click/keypress to enable sound)
+   - **Tab/favicon blinking**: Blinks red for 5 seconds, then stays solid red until you click anywhere on the page
    - Desktop notifications show call details
-   - When minimized, favicon blinks red until window is restored
+   - Works both when window is visible and minimized
 
 ## Recent Changes (October 11, 2025)
 - Initial project setup with Python environment and dependencies
@@ -106,6 +107,8 @@ This application helps monitor emergency fire dispatch calls in real-time, with 
 - **Scrollable calls list**: Can scroll through multiple active fire calls (600px max-height)
 - **Yellow highlighting for new calls**: New calls appear with transparent yellow background; click to dismiss highlight
 - **Dual check timestamps**: Shows both "Check Start" (when scan begins) and "Check Finish" (when scan completes)
+- **Enhanced tab alerts**: Tab/favicon blinks red for 5 seconds, then stays solid red until page is clicked
+- **Improved audio alerts**: Audio context initialized on first user interaction for reliable sound playback
 - Configured workflow to run on port 5000
 
 ## API Endpoints
