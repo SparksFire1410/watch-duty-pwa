@@ -17,7 +17,7 @@ This application helps monitor emergency fire dispatch calls in real-time, with 
 - **Automated Web Scraping**: Checks call-log-api.edispatches.com/calls/ every 60 seconds for new dispatch calls
 - **Queue System**: All new calls are added to a processing queue to ensure no calls are missed during heavy activity
 - **State-Based Filtering**: Queue only processes calls from selected states - deselecting states immediately removes those calls from the queue
-- **EMS Agency Filtering**: Filters out EMS-only agencies (ambulance, medic, paramedic) BEFORE entering queue unless they also have fire department affiliation - saves significant processing time and keeps queue counter accurate
+- **EMS Agency Filtering**: CONSERVATIVE filtering - only skips agencies that are CLEARLY EMS-only (County_EMS, Ambulance_Service, MedicUnit) BEFORE entering queue. Ambiguous names (Station_20, Saltillo_9, AntrimAmb) always enter queue for transcription - when in doubt, transcribe it
 - **Speech-to-Text Transcription**: Uses faster-whisper AI to transcribe dispatch audio and detect fire keywords
   - Transcribes only first 25 seconds of audio for speed (full audio file available for playback)
   - Detects: grass fire, brush fire, wildland fire, wildfire, natural cover fire, vegetation fire, pasture fire, hay field fire, hay fire, ditch fire, tree fire, trees on fire, bush fire, bushes on fire, controlled burn, out of control burn, smoke (all variations)
@@ -121,7 +121,7 @@ This application helps monitor emergency fire dispatch calls in real-time, with 
 - **Backend deduplication**: Prevents duplicate fire calls from being added during re-checks (updates existing calls instead)
 - **Frontend deduplication**: Call count accurately reflects unique calls displayed (no count mismatch)
 - **Persistent state selection**: User's state filter choices are saved to browser localStorage and restored on reload
-- **EMS agency filtering**: Filters EMS-only agencies BEFORE queue entry (not during processing) for cleaner architecture and accurate queue counter
+- **EMS agency filtering**: CONSERVATIVE filtering - only skips CLEARLY EMS-only agencies (County_EMS, Ambulance_Service) before queue entry. Ambiguous names (Station_20, Saltillo_9, AntrimAmb) always transcribed - when in doubt, transcribe it
 - Configured workflow to run on port 5000
 
 ## API Endpoints

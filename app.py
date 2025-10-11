@@ -148,9 +148,11 @@ def transcribe_audio_with_whisper(audio_url, max_seconds=25):
 
 def is_ems_only_agency(agency_name):
     """
-    Check if agency is EMS-only (no fire department affiliation).
-    Returns True if agency should be skipped (EMS-only).
-    Returns False if agency might be fire-related.
+    CONSERVATIVE filtering: Only skip agencies that are CLEARLY and OBVIOUSLY EMS-only.
+    When in doubt, let it through to the queue for transcription.
+    
+    Returns True if agency should be skipped (clearly EMS-only).
+    Returns False if agency might be fire-related or is ambiguous.
     """
     agency_lower = agency_name.lower()
     
@@ -172,24 +174,27 @@ def is_ems_only_agency(agency_name):
     if has_fire:
         return False  # Has fire department, don't skip
     
-    # EMS-only keywords that indicate non-fire medical services
-    ems_keywords = [
-        r'\bems\b',
-        r'\bambulance\b',
-        r'\bmedic\b',
-        r'\bparamedic\b',
-        r'\bemt\b',
-        r'medical[-_\s]?services',
-        r'emergency[-_\s]?medical'
+    # VERY STRICT EMS-only patterns - only filter the most obvious cases
+    # Examples: "County_EMS", "Ambulance_Service", "MedicUnit", "Paramedic_Response"
+    # Will NOT match: "Station_20", "Saltillo_9", "AntrimAmb" (ambiguous cases)
+    obvious_ems_patterns = [
+        r'(^|[-_\s])ems([-_\s]|$)',           # "EMS" as standalone word with separators
+        r'(^|[-_\s])ambulance([-_\s]|$)',     # "Ambulance" as standalone word
+        r'(^|[-_\s])medic([-_\s]|$)',         # "Medic" as standalone word (not "medical")
+        r'(^|[-_\s])paramedic',               # "Paramedic" prefix
+        r'(^|[-_\s])emt([-_\s]|$)',           # "EMT" as standalone word
+        r'medical[-_\s]service',              # "Medical Service" or "Medical_Service"
+        r'emergency[-_\s]medical[-_\s]service' # "Emergency Medical Service"
     ]
     
-    # Check if agency has EMS-only keywords
-    has_ems = any(re.search(pattern, agency_lower) for pattern in ems_keywords)
+    # Only skip if agency has OBVIOUS EMS-only patterns
+    has_obvious_ems = any(re.search(pattern, agency_lower) for pattern in obvious_ems_patterns)
     
-    if has_ems:
-        return True  # EMS-only, skip transcription
+    if has_obvious_ems:
+        return True  # Clearly EMS-only, skip transcription
     
-    return False  # Unknown agency type, transcribe to be safe
+    # Default: When in doubt, let it through for transcription
+    return False
 
 def cleanup_old_calls():
     """Remove calls older than 1 hour, but always keep the last 5 calls"""
