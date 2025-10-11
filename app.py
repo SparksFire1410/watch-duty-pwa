@@ -214,20 +214,32 @@ def process_call_queue():
             processed_audio_urls.add(call_info['audio_url'])
             
             if transcript and is_fire_call_in_transcript(transcript):
-                call_data = {
-                    'audio_url': call_info['audio_url'],  # Keep full audio for playback
-                    'agency': call_info['agency'],
-                    'location': call_info['location'],
-                    'state': call_info['state'],
-                    'timestamp': call_info['timestamp'],
-                    'transcript': transcript,
-                    'first_detected': datetime.utcnow().isoformat() + 'Z',
-                    'id': call_info['audio_url']
-                }
+                # Check if this call already exists
+                call_id = call_info['audio_url']
+                existing_call = next((c for c in fire_calls if c['id'] == call_id), None)
                 
-                fire_calls.insert(0, call_data)
-                print(f"🔥 FIRE CALL DETECTED: {call_info['agency']} - {call_info['location']}")
-                print(f"   Transcript (25s): {transcript[:100]}...")
+                if existing_call:
+                    # Update existing call with new transcript if different
+                    if existing_call.get('transcript') != transcript:
+                        existing_call['transcript'] = transcript
+                        print(f"🔄 UPDATED: {call_info['agency']} - {call_info['location']}")
+                        print(f"   New transcript (25s): {transcript[:100]}...")
+                else:
+                    # Add new call
+                    call_data = {
+                        'audio_url': call_info['audio_url'],  # Keep full audio for playback
+                        'agency': call_info['agency'],
+                        'location': call_info['location'],
+                        'state': call_info['state'],
+                        'timestamp': call_info['timestamp'],
+                        'transcript': transcript,
+                        'first_detected': datetime.utcnow().isoformat() + 'Z',
+                        'id': call_info['audio_url']
+                    }
+                    
+                    fire_calls.insert(0, call_data)
+                    print(f"🔥 FIRE CALL DETECTED: {call_info['agency']} - {call_info['location']}")
+                    print(f"   Transcript (25s): {transcript[:100]}...")
             
             processed_count += 1
         

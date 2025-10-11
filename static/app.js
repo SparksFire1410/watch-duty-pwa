@@ -19,8 +19,6 @@ function loadSelectedStates() {
     } else {
         selectedStates = new Set();
     }
-    // Send initial state selection to backend
-    updateBackendStateFilter();
 }
 
 function toggleStateFilter() {
@@ -128,6 +126,9 @@ async function loadStates() {
         const data = await response.json();
         const stateGrid = document.getElementById('stateGrid');
         
+        // Check if no states are selected (first load)
+        const isFirstLoad = selectedStates.size === 0;
+        
         data.states.forEach(state => {
             const div = document.createElement('div');
             div.className = 'state-checkbox';
@@ -136,7 +137,15 @@ async function loadStates() {
             checkbox.type = 'checkbox';
             checkbox.value = state;
             checkbox.id = `state-${state}`;
-            checkbox.checked = selectedStates.has(state);
+            
+            // If first load, select all states by default
+            if (isFirstLoad) {
+                checkbox.checked = true;
+                selectedStates.add(state);
+            } else {
+                checkbox.checked = selectedStates.has(state);
+            }
+            
             checkbox.onchange = (e) => handleStateChange(state, e.target.checked);
             
             const label = document.createElement('label');
@@ -147,6 +156,15 @@ async function loadStates() {
             div.appendChild(label);
             stateGrid.appendChild(div);
         });
+        
+        // If first load, save the selected states and update backend
+        if (isFirstLoad) {
+            saveSelectedStates();
+            updateBackendStateFilter();
+        } else {
+            // Always send current state filter to backend on load
+            updateBackendStateFilter();
+        }
     } catch (error) {
         console.error('Error loading states:', error);
     }
@@ -299,9 +317,19 @@ function updateCallsDisplay(calls = []) {
     
     const filteredCalls = filterCallsByState(calls);
     
-    callCount.textContent = `(${filteredCalls.length})`;
+    // Deduplicate by ID (keep first occurrence)
+    const uniqueCalls = [];
+    const seenIds = new Set();
+    filteredCalls.forEach(call => {
+        if (!seenIds.has(call.id)) {
+            seenIds.add(call.id);
+            uniqueCalls.push(call);
+        }
+    });
     
-    if (filteredCalls.length === 0) {
+    callCount.textContent = `(${uniqueCalls.length})`;
+    
+    if (uniqueCalls.length === 0) {
         callsList.innerHTML = '<div class="no-calls">No active fire calls matching your filters</div>';
         return;
     }
@@ -311,7 +339,7 @@ function updateCallsDisplay(calls = []) {
         Array.from(callsList.querySelectorAll('.call-card')).map(card => card.dataset.callId)
     );
     
-    const currentCallIds = new Set(filteredCalls.map(call => call.id));
+    const currentCallIds = new Set(uniqueCalls.map(call => call.id));
     
     // Remove calls that no longer exist
     existingCallIds.forEach(id => {
@@ -322,7 +350,7 @@ function updateCallsDisplay(calls = []) {
     });
     
     // Add or update calls
-    filteredCalls.forEach((call, index) => {
+    uniqueCalls.forEach((call, index) => {
         let callCard = callsList.querySelector(`[data-call-id="${call.id}"]`);
         const isNew = !knownCallIds.has(call.id);
         const isHighlighted = highlightedCalls.has(call.id);
