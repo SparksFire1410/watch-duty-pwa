@@ -282,35 +282,73 @@ function updateCallsDisplay(calls = []) {
         return;
     }
     
-    callsList.innerHTML = filteredCalls.map(call => {
+    // Get existing call IDs in the DOM
+    const existingCallIds = new Set(
+        Array.from(callsList.querySelectorAll('.call-card')).map(card => card.dataset.callId)
+    );
+    
+    const currentCallIds = new Set(filteredCalls.map(call => call.id));
+    
+    // Remove calls that no longer exist
+    existingCallIds.forEach(id => {
+        if (!currentCallIds.has(id)) {
+            const card = callsList.querySelector(`[data-call-id="${id}"]`);
+            if (card) card.remove();
+        }
+    });
+    
+    // Add or update calls
+    filteredCalls.forEach((call, index) => {
+        let callCard = callsList.querySelector(`[data-call-id="${call.id}"]`);
         const isNew = !knownCallIds.has(call.id);
         const isHighlighted = highlightedCalls.has(call.id);
         
-        return `
-            <div class="call-card ${isNew ? 'new' : ''} ${isHighlighted ? 'highlighted' : ''}" 
-                 data-call-id="${call.id}" 
-                 onclick="unhighlightCall('${call.id.replace(/'/g, "\\'")}')">
-                <button class="dismiss-btn" onclick="event.stopPropagation(); dismissCall('${call.id.replace(/'/g, "\\'")}')">✕</button>
-                <div class="call-header">
-                    <div class="incident-type">${call.agency}</div>
-                    <div class="timestamp">${call.timestamp}</div>
-                </div>
-                <div class="call-details">
-                    <div class="location">📍 ${call.location}</div>
-                    <span class="state-badge">${call.state}</span>
-                </div>
-                ${call.transcript ? `<div class="transcript">📝 ${call.transcript}</div>` : ''}
-                ${call.audio_url ? `
-                    <div class="audio-player">
-                        <audio controls preload="none" onclick="event.stopPropagation()">
-                            <source src="${call.audio_url}" type="audio/mpeg">
-                            Your browser does not support audio playback.
-                        </audio>
+        if (!callCard) {
+            // Create new call card
+            const cardHTML = `
+                <div class="call-card ${isNew ? 'new' : ''} ${isHighlighted ? 'highlighted' : ''}" 
+                     data-call-id="${call.id}" 
+                     onclick="unhighlightCall('${call.id.replace(/'/g, "\\'")}')">
+                    <button class="dismiss-btn" onclick="event.stopPropagation(); dismissCall('${call.id.replace(/'/g, "\\'")}')">✕</button>
+                    <div class="call-header">
+                        <div class="incident-type">${call.agency}</div>
+                        <div class="timestamp">${call.timestamp}</div>
                     </div>
-                ` : ''}
-            </div>
-        `;
-    }).join('');
+                    <div class="call-details">
+                        <div class="location">📍 ${call.location}</div>
+                        <span class="state-badge">${call.state}</span>
+                    </div>
+                    ${call.transcript ? `<div class="transcript">📝 ${call.transcript}</div>` : ''}
+                    ${call.audio_url ? `
+                        <div class="audio-player">
+                            <audio controls preload="none" onclick="event.stopPropagation()">
+                                <source src="${call.audio_url}" type="audio/mpeg">
+                                Your browser does not support audio playback.
+                            </audio>
+                        </div>
+                    ` : ''}
+                </div>
+            `;
+            
+            // Insert at correct position
+            const existingCards = callsList.querySelectorAll('.call-card');
+            if (index < existingCards.length) {
+                existingCards[index].insertAdjacentHTML('beforebegin', cardHTML);
+            } else {
+                callsList.insertAdjacentHTML('beforeend', cardHTML);
+            }
+        } else {
+            // Update existing card's classes without recreating it
+            callCard.className = `call-card ${isNew ? 'new' : ''} ${isHighlighted ? 'highlighted' : ''}`;
+            
+            // Ensure correct position
+            const existingCards = Array.from(callsList.querySelectorAll('.call-card'));
+            const currentIndex = existingCards.indexOf(callCard);
+            if (currentIndex !== index && existingCards[index]) {
+                callsList.insertBefore(callCard, existingCards[index]);
+            }
+        }
+    });
 }
 
 async function checkForNewCalls() {

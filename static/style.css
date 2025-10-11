@@ -271,9 +271,13 @@ header h1 {
 }
 
 .incident-type {
+    display: inline-block;
+    background: white;
+    color: #1a1a2e;
+    padding: 4px 12px;
+    border-radius: 3px;
     font-size: 1.2em;
     font-weight: bold;
-    color: #ff6b6b;
 }
 
 .timestamp {
