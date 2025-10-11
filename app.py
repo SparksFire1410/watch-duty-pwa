@@ -50,7 +50,8 @@ FIRE_KEYWORDS = [
     r'bush[\s_-]?on[\s_-]?fire',
     r'bush[\s_-]?fire',
     r'controlled[\s_-]?burn',
-    r'\bsmoke\b'
+    r'\bsmoke\b',
+    r'\bsmoking\b'
 ]
 
 US_STATES = {

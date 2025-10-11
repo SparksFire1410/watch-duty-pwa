@@ -20,7 +20,7 @@ This application helps monitor emergency fire dispatch calls in real-time, with 
 - **EMS Agency Filtering**: CONSERVATIVE filtering - only skips agencies that are CLEARLY EMS-only (County_EMS, Ambulance_Service, MedicUnit) BEFORE entering queue. Ambiguous names (Station_20, Saltillo_9, AntrimAmb) always enter queue for transcription - when in doubt, transcribe it
 - **Speech-to-Text Transcription**: Uses faster-whisper AI to transcribe dispatch audio and detect fire keywords
   - Transcribes only first 25 seconds of audio for speed (full audio file available for playback)
-  - Detects: grass fire, brush fire, wildland fire, wildfire, natural cover fire, vegetation fire, pasture fire, hay field fire, hay fire, ditch fire, tree fire, trees on fire, bush fire, bushes on fire, controlled burn, out of control burn, smoke (all variations)
+  - Detects: grass fire, brush fire, wildland fire, wildfire, natural cover fire, vegetation fire, pasture fire, hay field fire, hay fire, ditch fire, tree fire, trees on fire, bush fire, bushes on fire, controlled burn, out of control burn, smoke, smoking (all variations)
   - Filters out non-fire calls (EMS, medical, etc.) based on actual audio content
 - **Audio Re-checking**: Automatically re-checks recent calls (last 10 minutes) every minute to detect if full audio becomes available on edispatches.com
 - **Smart Call Retention**: Calls stay visible for minimum 1 hour, last 5 calls kept indefinitely
