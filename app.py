@@ -252,13 +252,6 @@ def process_call_queue():
             
             print(f"Processing queued call from {call_info['agency']} at {call_info['location']}")
             
-            # Check if agency is EMS-only (skip transcription for efficiency)
-            if is_ems_only_agency(call_info['agency']):
-                print(f"   ⏭️  Skipped (EMS-only agency)")
-                processed_audio_urls.add(call_info['audio_url'])
-                processed_count += 1
-                continue
-            
             # Transcribe only first 25 seconds for speed
             transcript = transcribe_audio_with_whisper(call_info['audio_url'], max_seconds=25)
             
@@ -387,13 +380,18 @@ def scrape_dispatch_calls(max_rows=50, is_initial_scan=False):
                         timestamp = cols[3].text.strip()
                         state = extract_state_from_location(location)
                         
-                        # Add to queue if not already processed AND state is selected
+                        # Add to queue if not already processed AND state is selected AND not EMS-only
                         if audio_url not in processed_audio_urls:
                             # Check if this state is selected
                             with states_lock:
                                 state_is_selected = state in selected_states
                             
                             if state_is_selected:
+                                # Skip EMS-only agencies before adding to queue (saves processing time)
+                                if is_ems_only_agency(agency):
+                                    processed_audio_urls.add(audio_url)  # Mark as processed
+                                    continue
+                                
                                 call_info = {
                                     'audio_url': audio_url,
                                     'agency': agency,
