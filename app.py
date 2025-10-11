@@ -211,6 +211,9 @@ def scrape_dispatch_calls(max_rows=20, max_process=15, is_initial_scan=False):
         return
     
     try:
+        # Set last check time at the start of the scan
+        last_check_time = datetime.utcnow().isoformat() + 'Z'
+        
         new_fire_calls_count = 0
         
         url = "https://call-log-api.edispatches.com/calls/"
@@ -276,7 +279,6 @@ def scrape_dispatch_calls(max_rows=20, max_process=15, is_initial_scan=False):
                     print(f"🔥 FIRE CALL DETECTED: {call_info['agency']} - {call_info['location']}")
                     print(f"   Transcript: {transcript[:100]}...")
         
-        last_check_time = datetime.utcnow().isoformat() + 'Z'
         print(f"Scan complete. Found {new_fire_calls_count} new fire calls (Total: {len(fire_calls)})")
         
     except Exception as e:
