@@ -202,7 +202,7 @@ def recheck_recent_calls():
     finally:
         processing_lock.release()
 
-def scrape_dispatch_calls():
+def scrape_dispatch_calls(max_rows=20, max_process=15, is_initial_scan=False):
     global fire_calls, last_check_time, processed_audio_urls
     
     # Use lock to prevent concurrent execution
@@ -226,7 +226,11 @@ def scrape_dispatch_calls():
             new_calls_to_process = []
             
             # First pass: collect new calls
-            for row in rows[:20]:  # Limit to first 20 rows to avoid overload
+            scan_limit = max_rows
+            if is_initial_scan:
+                print(f"Initial scan: checking last {scan_limit} calls...")
+            
+            for row in rows[:scan_limit]:
                 cols = row.find_all('td')
                 if len(cols) >= 4:
                     audio_tag = cols[0].find('audio')
@@ -246,8 +250,8 @@ def scrape_dispatch_calls():
                                 'timestamp': timestamp
                             })
             
-            # Second pass: transcribe and filter (process up to 15 at a time)
-            for call_info in new_calls_to_process[:15]:
+            # Second pass: transcribe and filter
+            for call_info in new_calls_to_process[:max_process]:
                 print(f"Processing new call from {call_info['agency']} at {call_info['location']}")
                 
                 transcript = transcribe_audio_with_whisper(call_info['audio_url'])
@@ -326,8 +330,8 @@ scheduler.add_job(func=recheck_recent_calls, trigger="interval", seconds=60)
 scheduler.start()
 
 # Run initial scan in background thread so app can start
-print("Starting initial scan in background...")
-threading.Thread(target=scrape_dispatch_calls, daemon=True).start()
+print("Starting initial scan of last 30 calls...")
+threading.Thread(target=lambda: scrape_dispatch_calls(max_rows=30, max_process=30, is_initial_scan=True), daemon=True).start()
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=False)

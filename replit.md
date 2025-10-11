@@ -13,6 +13,7 @@ This application helps monitor emergency fire dispatch calls in real-time, with 
 - Frontend with real-time updates every 5 seconds
 
 ## Features
+- **Initial Scan**: Checks last 30 calls on startup/restart for any fire-related dispatches
 - **Automated Web Scraping**: Checks call-log-api.edispatches.com/calls/ every 60 seconds for new dispatch calls
 - **Speech-to-Text Transcription**: Uses faster-whisper AI to transcribe dispatch audio and detect fire keywords
   - Detects: grass fire, brush fire, wildland fire, wildfire, natural cover fire, vegetation fire, pasture fire, hay field fire, hay fire, ditch fire, tree fire, trees on fire, bush fire, bushes on fire, controlled burn, out of control burn, smoke (all variations)
