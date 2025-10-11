@@ -13,10 +13,10 @@ from faster_whisper import WhisperModel
 app = Flask(__name__)
 CORS(app)
 
-# Initialize Whisper model (small model for faster processing)
+# Initialize Whisper model (tiny model for faster processing)
 # Using int8 quantization for CPU efficiency
 print("Loading Whisper model...")
-whisper_model = WhisperModel("small", device="cpu", compute_type="int8")
+whisper_model = WhisperModel("tiny", device="cpu", compute_type="int8")
 print("Whisper model loaded successfully")
 
 fire_calls = []
