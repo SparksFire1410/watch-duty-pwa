@@ -55,6 +55,7 @@ header h1 {
 
 .status {
     display: flex;
+    flex-wrap: wrap;
     gap: 20px;
     font-size: 0.9em;
     color: #aaa;
@@ -198,11 +199,22 @@ header h1 {
     border-radius: 5px;
     animation: slideIn 0.3s ease-out;
     position: relative;
+    cursor: pointer;
+    transition: background 0.2s ease;
 }
 
 .call-card.new {
     background: rgba(255, 107, 107, 0.3);
     animation: pulse 1s ease-in-out 3;
+}
+
+.call-card.highlighted {
+    background: rgba(255, 235, 59, 0.2);
+    border-left-color: #ffd54f;
+}
+
+.call-card.highlighted:hover {
+    background: rgba(255, 235, 59, 0.25);
 }
 
 .dismiss-btn {

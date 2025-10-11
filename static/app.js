@@ -1,5 +1,6 @@
 let selectedStates = new Set();
 let knownCallIds = new Set();
+let highlightedCalls = new Set();
 let isAlertActive = false;
 let alertBorder = null;
 let alertSound = null;
@@ -196,6 +197,14 @@ function filterCallsByState(calls) {
     return calls.filter(call => selectedStates.has(call.state));
 }
 
+function unhighlightCall(callId) {
+    highlightedCalls.delete(callId);
+    const callCard = document.querySelector(`[data-call-id="${callId}"]`);
+    if (callCard) {
+        callCard.classList.remove('highlighted');
+    }
+}
+
 async function dismissCall(callId) {
     try {
         const response = await fetch(`/api/fire-calls/${encodeURIComponent(callId)}`, {
@@ -204,6 +213,7 @@ async function dismissCall(callId) {
         
         if (response.ok) {
             knownCallIds.delete(callId);
+            highlightedCalls.delete(callId);
             checkForNewCalls();
         } else {
             console.error('Failed to dismiss call');
@@ -228,10 +238,13 @@ function updateCallsDisplay(calls = []) {
     
     callsList.innerHTML = filteredCalls.map(call => {
         const isNew = !knownCallIds.has(call.id);
+        const isHighlighted = highlightedCalls.has(call.id);
         
         return `
-            <div class="call-card ${isNew ? 'new' : ''}" data-call-id="${call.id}">
-                <button class="dismiss-btn" onclick="dismissCall('${call.id.replace(/'/g, "\\'")}')">✕</button>
+            <div class="call-card ${isNew ? 'new' : ''} ${isHighlighted ? 'highlighted' : ''}" 
+                 data-call-id="${call.id}" 
+                 onclick="unhighlightCall('${call.id.replace(/'/g, "\\'")}')">
+                <button class="dismiss-btn" onclick="event.stopPropagation(); dismissCall('${call.id.replace(/'/g, "\\'")}')">✕</button>
                 <div class="call-header">
                     <div class="incident-type">${call.agency}</div>
                     <div class="timestamp">${call.timestamp}</div>
@@ -243,7 +256,7 @@ function updateCallsDisplay(calls = []) {
                 ${call.transcript ? `<div class="transcript">📝 ${call.transcript}</div>` : ''}
                 ${call.audio_url ? `
                     <div class="audio-player">
-                        <audio controls preload="none">
+                        <audio controls preload="none" onclick="event.stopPropagation()">
                             <source src="${call.audio_url}" type="audio/mpeg">
                             Your browser does not support audio playback.
                         </audio>
@@ -260,26 +273,42 @@ async function checkForNewCalls() {
         const data = await response.json();
         
         const statusEl = document.getElementById('status');
-        const lastCheckEl = document.getElementById('lastCheck');
+        const checkStartEl = document.getElementById('checkStart');
+        const checkFinishEl = document.getElementById('checkFinish');
         
         statusEl.textContent = '✓ Active';
         statusEl.className = 'active';
         
-        if (data.last_check) {
-            const lastCheckTime = new Date(data.last_check);
-            const timeString = lastCheckTime.toLocaleString(undefined, {
+        if (data.check_start) {
+            const checkStartTime = new Date(data.check_start);
+            const startString = checkStartTime.toLocaleString(undefined, {
                 hour: 'numeric',
                 minute: '2-digit',
                 second: '2-digit',
                 hour12: true
             });
-            lastCheckEl.textContent = `Last check: ${timeString}`;
+            checkStartEl.textContent = `Check Start: ${startString}`;
+        }
+        
+        if (data.check_finish) {
+            const checkFinishTime = new Date(data.check_finish);
+            const finishString = checkFinishTime.toLocaleString(undefined, {
+                hour: 'numeric',
+                minute: '2-digit',
+                second: '2-digit',
+                hour12: true
+            });
+            checkFinishEl.textContent = `Check Finish: ${finishString}`;
+        } else {
+            checkFinishEl.textContent = 'Check Finish: Processing...';
         }
         
         const filteredCalls = filterCallsByState(data.calls);
         const newCalls = filteredCalls.filter(call => !knownCallIds.has(call.id));
         
         if (newCalls.length > 0) {
+            newCalls.forEach(call => highlightedCalls.add(call.id));
+            
             playAlertSound();
             startVisualAlert();
             

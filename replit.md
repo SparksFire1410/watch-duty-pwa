@@ -76,8 +76,13 @@ This application helps monitor emergency fire dispatch calls in real-time, with 
    - The app checks for new calls every 60 seconds
    - Frontend updates every 5 seconds
    - New fire calls trigger all alert mechanisms
+   - **New calls are highlighted in yellow** - click any call to remove the yellow highlight
 
-4. **Alert System**:
+4. **Check Status Display**:
+   - **Check Start**: Shows when the last scan began
+   - **Check Finish**: Shows when the last scan completed (or "Processing..." while scanning)
+
+5. **Alert System**:
    - Screen border blinks red for 5 seconds when new calls appear
    - Audio beep plays for new calls
    - Desktop notifications show call details
@@ -99,6 +104,8 @@ This application helps monitor emergency fire dispatch calls in real-time, with 
 - **Call retention system**: Calls stay for minimum 1 hour, last 5 calls kept indefinitely
 - **Manual dismissal**: X button in upper right corner of each call to dismiss manually
 - **Scrollable calls list**: Can scroll through multiple active fire calls (600px max-height)
+- **Yellow highlighting for new calls**: New calls appear with transparent yellow background; click to dismiss highlight
+- **Dual check timestamps**: Shows both "Check Start" (when scan begins) and "Check Finish" (when scan completes)
 - Configured workflow to run on port 5000
 
 ## API Endpoints
@@ -107,7 +114,7 @@ This application helps monitor emergency fire dispatch calls in real-time, with 
 Returns the main application HTML page
 
 ### `GET /api/fire-calls`
-Returns active fire department calls and last check timestamp
+Returns active fire department calls and check timestamps
 ```json
 {
   "calls": [
@@ -120,7 +127,8 @@ Returns active fire department calls and last check timestamp
       "id": "https://audio.edispatches.com/play/..."
     }
   ],
-  "last_check": "2025-10-10T19:31:52.123456Z"
+  "check_start": "2025-10-10T19:31:52.123456Z",
+  "check_finish": "2025-10-10T19:32:15.789012Z"
 }
 ```
 
@@ -132,7 +140,8 @@ Returns application health status
 ```json
 {
   "status": "running",
-  "last_check": "2025-10-10T19:31:52.123456Z",
+  "check_start": "2025-10-10T19:31:52.123456Z",
+  "check_finish": "2025-10-10T19:32:15.789012Z",
   "fire_calls_count": 7
 }
 ```

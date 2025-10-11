@@ -20,7 +20,8 @@ whisper_model = WhisperModel("small", device="cpu", compute_type="int8")
 print("Whisper model loaded successfully")
 
 fire_calls = []
-last_check_time = None
+check_start_time = None
+check_finish_time = None
 processed_audio_urls = set()
 processing_lock = threading.Lock()
 
@@ -203,7 +204,7 @@ def recheck_recent_calls():
         processing_lock.release()
 
 def scrape_dispatch_calls(max_rows=20, max_process=15, is_initial_scan=False):
-    global fire_calls, last_check_time, processed_audio_urls
+    global fire_calls, check_start_time, check_finish_time, processed_audio_urls
     
     # Use lock to prevent concurrent execution
     if not processing_lock.acquire(blocking=False):
@@ -211,8 +212,8 @@ def scrape_dispatch_calls(max_rows=20, max_process=15, is_initial_scan=False):
         return
     
     try:
-        # Set last check time at the start of the scan
-        last_check_time = datetime.utcnow().isoformat() + 'Z'
+        # Set check start time at the start of the scan
+        check_start_time = datetime.utcnow().isoformat() + 'Z'
         
         new_fire_calls_count = 0
         
@@ -279,6 +280,8 @@ def scrape_dispatch_calls(max_rows=20, max_process=15, is_initial_scan=False):
                     print(f"🔥 FIRE CALL DETECTED: {call_info['agency']} - {call_info['location']}")
                     print(f"   Transcript: {transcript[:100]}...")
         
+        # Set check finish time at the end of the scan
+        check_finish_time = datetime.utcnow().isoformat() + 'Z'
         print(f"Scan complete. Found {new_fire_calls_count} new fire calls (Total: {len(fire_calls)})")
         
     except Exception as e:
@@ -298,7 +301,8 @@ def index():
 def get_fire_calls():
     return jsonify({
         'calls': fire_calls,
-        'last_check': last_check_time
+        'check_start': check_start_time,
+        'check_finish': check_finish_time
     })
 
 @app.route('/api/states')
@@ -309,7 +313,8 @@ def get_states():
 def health():
     return jsonify({
         'status': 'running',
-        'last_check': last_check_time,
+        'check_start': check_start_time,
+        'check_finish': check_finish_time,
         'fire_calls_count': len(fire_calls)
     })
 
