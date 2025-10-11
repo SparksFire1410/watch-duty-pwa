@@ -321,7 +321,7 @@ function updateCallsDisplay(calls = []) {
                     ${call.transcript ? `<div class="transcript">📝 ${call.transcript}</div>` : ''}
                     ${call.audio_url ? `
                         <div class="audio-player">
-                            <audio controls preload="none" onclick="event.stopPropagation()">
+                            <audio controls preload="none" onclick="event.stopPropagation(); unhighlightCall('${call.id.replace(/'/g, "\\'")}')">
                                 <source src="${call.audio_url}" type="audio/mpeg">
                                 Your browser does not support audio playback.
                             </audio>

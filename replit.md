@@ -105,10 +105,12 @@ This application helps monitor emergency fire dispatch calls in real-time, with 
 - **Call retention system**: Calls stay for minimum 1 hour, last 5 calls kept indefinitely
 - **Manual dismissal**: X button in upper right corner of each call to dismiss manually
 - **Scrollable calls list**: Can scroll through multiple active fire calls (600px max-height)
-- **Yellow highlighting for new calls**: New calls appear with transparent yellow background; click to dismiss highlight
+- **Yellow highlighting for new calls**: New calls appear with transparent yellow background; click card or play audio to dismiss highlight
 - **Dual check timestamps**: Shows both "Check Start" (when scan begins) and "Check Finish" (when scan completes)
 - **Enhanced tab alerts**: Tab/favicon blinks red for 5 seconds, then stays solid red until page is clicked
 - **Improved audio alerts**: Audio context initialized on first user interaction for reliable sound playback
+- **Mobile-responsive design**: Optimized layout and touch-friendly controls for phones and tablets
+- **Optimized Whisper model**: Uses "small" model for better transcription accuracy
 - Configured workflow to run on port 5000
 
 ## API Endpoints
