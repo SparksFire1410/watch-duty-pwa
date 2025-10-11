@@ -15,7 +15,7 @@ This application helps monitor emergency fire dispatch calls in real-time, with 
 ## Features
 - **Automated Web Scraping**: Checks call-log-api.edispatches.com/calls/ every 60 seconds for new dispatch calls
 - **Speech-to-Text Transcription**: Uses faster-whisper AI to transcribe dispatch audio and detect fire keywords
-  - Detects: grass fire, brush fire, wildland fire, wildfire (all variations)
+  - Detects: grass fire, brush fire, wildland fire, wildfire, natural cover fire, vegetation fire, pasture fire, hay field fire, hay fire, ditch fire (all variations)
   - Filters out non-fire calls (EMS, medical, etc.) based on actual audio content
 - **Audio Re-checking**: Automatically re-checks recent calls (last 10 minutes) every minute to detect if full audio becomes available on edispatches.com
 - **Smart Call Retention**: Calls stay visible for minimum 1 hour, last 5 calls kept indefinitely
@@ -86,7 +86,7 @@ This application helps monitor emergency fire dispatch calls in real-time, with 
 - Initial project setup with Python environment and dependencies
 - Created Flask backend with web scraping functionality from call-log-api.edispatches.com
 - **Updated to Whisper transcription**: Uses faster-whisper (self-hosted) for accurate speech-to-text
-- Implemented fire keyword detection from audio transcripts (grass fire, brush fire, wildland fire, wildfire)
+- Implemented fire keyword detection from audio transcripts (grass fire, brush fire, wildland fire, wildfire, natural cover fire, vegetation fire, pasture fire, hay field fire, hay fire, ditch fire)
 - Built responsive frontend UI with state filtering for all 50 US states
 - Added visual alert system with red blinking border (CSS animations)
 - Implemented audio alerts using Web Audio API (800Hz beep sound)
