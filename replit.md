@@ -17,6 +17,7 @@ This application helps monitor emergency fire dispatch calls in real-time, with 
 - **Automated Web Scraping**: Checks call-log-api.edispatches.com/calls/ every 60 seconds for new dispatch calls
 - **Queue System**: All new calls are added to a processing queue to ensure no calls are missed during heavy activity
 - **State-Based Filtering**: Queue only processes calls from selected states - deselecting states immediately removes those calls from the queue
+- **EMS Agency Filtering**: Skips transcription for EMS-only agencies (ambulance, medic, paramedic) unless they also have fire department affiliation - saves significant processing time
 - **Speech-to-Text Transcription**: Uses faster-whisper AI to transcribe dispatch audio and detect fire keywords
   - Transcribes only first 25 seconds of audio for speed (full audio file available for playback)
   - Detects: grass fire, brush fire, wildland fire, wildfire, natural cover fire, vegetation fire, pasture fire, hay field fire, hay fire, ditch fire, tree fire, trees on fire, bush fire, bushes on fire, controlled burn, out of control burn, smoke (all variations)
@@ -120,6 +121,7 @@ This application helps monitor emergency fire dispatch calls in real-time, with 
 - **Backend deduplication**: Prevents duplicate fire calls from being added during re-checks (updates existing calls instead)
 - **Frontend deduplication**: Call count accurately reflects unique calls displayed (no count mismatch)
 - **Persistent state selection**: User's state filter choices are saved to browser localStorage and restored on reload
+- **EMS agency filtering**: Automatically skips transcription for EMS-only agencies (County_EMS, Ambulance_Service, etc.) unless they have fire department keywords - significantly reduces processing time
 - Configured workflow to run on port 5000
 
 ## API Endpoints

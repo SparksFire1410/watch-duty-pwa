@@ -146,6 +146,51 @@ def transcribe_audio_with_whisper(audio_url, max_seconds=25):
             os.unlink(trimmed_path)
         return None
 
+def is_ems_only_agency(agency_name):
+    """
+    Check if agency is EMS-only (no fire department affiliation).
+    Returns True if agency should be skipped (EMS-only).
+    Returns False if agency might be fire-related.
+    """
+    agency_lower = agency_name.lower()
+    
+    # Fire-related keywords that indicate fire department involvement
+    fire_keywords = [
+        r'\bfire\b',
+        r'\bfd\b',
+        r'\bvfd\b',
+        r'fire[-_\s]?dept',
+        r'fire[-_\s]?department',
+        r'fire[-_\s]?rescue',
+        r'fire[-_\s]?ems',
+        r'fire[-_\s]?district'
+    ]
+    
+    # Check if agency has fire-related keywords
+    has_fire = any(re.search(pattern, agency_lower) for pattern in fire_keywords)
+    
+    if has_fire:
+        return False  # Has fire department, don't skip
+    
+    # EMS-only keywords that indicate non-fire medical services
+    ems_keywords = [
+        r'\bems\b',
+        r'\bambulance\b',
+        r'\bmedic\b',
+        r'\bparamedic\b',
+        r'\bemt\b',
+        r'medical[-_\s]?services',
+        r'emergency[-_\s]?medical'
+    ]
+    
+    # Check if agency has EMS-only keywords
+    has_ems = any(re.search(pattern, agency_lower) for pattern in ems_keywords)
+    
+    if has_ems:
+        return True  # EMS-only, skip transcription
+    
+    return False  # Unknown agency type, transcribe to be safe
+
 def cleanup_old_calls():
     """Remove calls older than 1 hour, but always keep the last 5 calls"""
     global fire_calls
@@ -206,6 +251,13 @@ def process_call_queue():
                 call_info = call_queue.popleft()
             
             print(f"Processing queued call from {call_info['agency']} at {call_info['location']}")
+            
+            # Check if agency is EMS-only (skip transcription for efficiency)
+            if is_ems_only_agency(call_info['agency']):
+                print(f"   ⏭️  Skipped (EMS-only agency)")
+                processed_audio_urls.add(call_info['audio_url'])
+                processed_count += 1
+                continue
             
             # Transcribe only first 25 seconds for speed
             transcript = transcribe_audio_with_whisper(call_info['audio_url'], max_seconds=25)
