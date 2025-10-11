@@ -13,9 +13,11 @@ This application helps monitor emergency fire dispatch calls in real-time, with 
 - Frontend with real-time updates every 5 seconds
 
 ## Features
-- **Initial Scan**: Checks last 30 calls on startup/restart for any fire-related dispatches
+- **Initial Scan**: Checks last 50 calls on startup/restart for any fire-related dispatches
 - **Automated Web Scraping**: Checks call-log-api.edispatches.com/calls/ every 60 seconds for new dispatch calls
+- **Queue System**: All new calls are added to a processing queue to ensure no calls are missed during heavy activity
 - **Speech-to-Text Transcription**: Uses faster-whisper AI to transcribe dispatch audio and detect fire keywords
+  - Transcribes only first 25 seconds of audio for speed (full audio file available for playback)
   - Detects: grass fire, brush fire, wildland fire, wildfire, natural cover fire, vegetation fire, pasture fire, hay field fire, hay fire, ditch fire, tree fire, trees on fire, bush fire, bushes on fire, controlled burn, out of control burn, smoke (all variations)
   - Filters out non-fire calls (EMS, medical, etc.) based on actual audio content
 - **Audio Re-checking**: Automatically re-checks recent calls (last 10 minutes) every minute to detect if full audio becomes available on edispatches.com
@@ -100,8 +102,6 @@ This application helps monitor emergency fire dispatch calls in real-time, with 
 - Added desktop notifications and favicon blinking for minimized state
 - **Added audio player**: Users can listen to dispatch audio directly in the app
 - **Added transcript display**: Shows detected speech-to-text transcription for each call
-- Optimized processing: Background threading, processes max 15 calls at a time
-- Uses faster-whisper library (4x faster than original Whisper, runs on CPU)
 - **Call retention system**: Calls stay for minimum 1 hour, last 5 calls kept indefinitely
 - **Manual dismissal**: X button in upper right corner of each call to dismiss manually
 - **Scrollable calls list**: Can scroll through multiple active fire calls (600px max-height)
@@ -111,6 +111,9 @@ This application helps monitor emergency fire dispatch calls in real-time, with 
 - **Improved audio alerts**: Audio context initialized on first user interaction for reliable sound playback
 - **Mobile-responsive design**: Optimized layout and touch-friendly controls for phones and tablets
 - **Optimized Whisper model**: Uses "small" model for better transcription accuracy
+- **Queue system implemented**: New calls are queued to prevent missing calls during heavy activity periods
+- **25-second transcription limit**: Audio is trimmed to 25 seconds before transcription for 3x faster processing (full audio kept for playback)
+- **Increased initial scan**: Now checks last 50 calls on startup (previously 30)
 - Configured workflow to run on port 5000
 
 ## API Endpoints
