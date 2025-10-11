@@ -321,7 +321,7 @@ function updateCallsDisplay(calls = []) {
                     ${call.transcript ? `<div class="transcript">📝 ${call.transcript}</div>` : ''}
                     ${call.audio_url ? `
                         <div class="audio-player">
-                            <audio controls preload="none" onclick="event.stopPropagation(); unhighlightCall('${call.id.replace(/'/g, "\\'")}')">
+                            <audio controls preload="none" data-call-id="${call.id}">
                                 <source src="${call.audio_url}" type="audio/mpeg">
                                 Your browser does not support audio playback.
                             </audio>
@@ -337,6 +337,19 @@ function updateCallsDisplay(calls = []) {
             } else {
                 callsList.insertAdjacentHTML('beforeend', cardHTML);
             }
+            
+            // Add play event listener to audio element
+            if (call.audio_url) {
+                const newCard = callsList.querySelector(`[data-call-id="${call.id}"]`);
+                const audioElement = newCard.querySelector('audio');
+                if (audioElement) {
+                    audioElement.setAttribute('data-listener-attached', 'true');
+                    audioElement.addEventListener('play', (e) => {
+                        e.stopPropagation();
+                        unhighlightCall(call.id);
+                    });
+                }
+            }
         } else {
             // Update existing card's classes without recreating it
             callCard.className = `call-card ${isNew ? 'new' : ''} ${isHighlighted ? 'highlighted' : ''}`;
@@ -346,6 +359,18 @@ function updateCallsDisplay(calls = []) {
             const currentIndex = existingCards.indexOf(callCard);
             if (currentIndex !== index && existingCards[index]) {
                 callsList.insertBefore(callCard, existingCards[index]);
+            }
+            
+            // Make sure audio element has play event listener
+            if (call.audio_url) {
+                const audioElement = callCard.querySelector('audio');
+                if (audioElement && !audioElement.hasAttribute('data-listener-attached')) {
+                    audioElement.setAttribute('data-listener-attached', 'true');
+                    audioElement.addEventListener('play', (e) => {
+                        e.stopPropagation();
+                        unhighlightCall(call.id);
+                    });
+                }
             }
         }
     });
