@@ -93,7 +93,7 @@ This application helps monitor emergency fire dispatch calls in real-time, with 
 - Added desktop notifications and favicon blinking for minimized state
 - **Added audio player**: Users can listen to dispatch audio directly in the app
 - **Added transcript display**: Shows detected speech-to-text transcription for each call
-- Optimized processing: Background threading, processes max 5 calls at a time
+- Optimized processing: Background threading, processes max 15 calls at a time
 - Uses faster-whisper library (4x faster than original Whisper, runs on CPU)
 - **Call retention system**: Calls stay for minimum 1 hour, last 5 calls kept indefinitely
 - **Manual dismissal**: X button in upper right corner of each call to dismiss manually

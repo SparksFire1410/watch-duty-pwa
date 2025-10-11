@@ -226,11 +226,14 @@ def scrape_dispatch_calls():
                                 'timestamp': timestamp
                             })
             
-            # Second pass: transcribe and filter (limit to 5 at a time)
-            for call_info in new_calls_to_process[:5]:
+            # Second pass: transcribe and filter (process up to 15 at a time)
+            for call_info in new_calls_to_process[:15]:
                 print(f"Processing new call from {call_info['agency']} at {call_info['location']}")
                 
                 transcript = transcribe_audio_with_whisper(call_info['audio_url'])
+                
+                # Mark as processed after transcription attempt
+                processed_audio_urls.add(call_info['audio_url'])
                 
                 if transcript and is_fire_call_in_transcript(transcript):
                     call_data = {
@@ -248,8 +251,6 @@ def scrape_dispatch_calls():
                     new_fire_calls_count += 1
                     print(f"🔥 FIRE CALL DETECTED: {call_info['agency']} - {call_info['location']}")
                     print(f"   Transcript: {transcript[:100]}...")
-                
-                processed_audio_urls.add(call_info['audio_url'])
         
         last_check_time = datetime.utcnow().isoformat() + 'Z'
         print(f"Scan complete. Found {new_fire_calls_count} new fire calls (Total: {len(fire_calls)})")
