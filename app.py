@@ -10,6 +10,7 @@ import requests
 from apscheduler.schedulers.background import BackgroundScheduler
 from datetime import datetime, timedelta
 from faster_whisper import WhisperModel
+from pydub import AudioSegment
 
 app = Flask(__name__)
 CORS(app)
@@ -91,6 +92,7 @@ def is_fire_call_in_transcript(transcript):
 def transcribe_audio_with_whisper(audio_url, max_seconds=25):
     """Transcribe audio, but only process first max_seconds (default 25) for speed"""
     tmp_path = None
+    trimmed_path = None
     
     try:
         response = requests.get(audio_url, timeout=30)
@@ -100,21 +102,34 @@ def transcribe_audio_with_whisper(audio_url, max_seconds=25):
             tmp_file.write(response.content)
             tmp_path = tmp_file.name
         
-        segments, info = whisper_model.transcribe(tmp_path, beam_size=5, language="en")
+        # Load audio and trim to max_seconds for faster transcription
+        audio = AudioSegment.from_mp3(tmp_path)
+        max_ms = max_seconds * 1000  # Convert to milliseconds
+        
+        # Only process if audio is longer than max_seconds, otherwise use original
+        if len(audio) > max_ms:
+            trimmed_audio = audio[:max_ms]
+            with tempfile.NamedTemporaryFile(suffix='.mp3', delete=False) as trimmed_file:
+                trimmed_audio.export(trimmed_file.name, format="mp3")
+                trimmed_path = trimmed_file.name
+            transcribe_file = trimmed_path
+        else:
+            transcribe_file = tmp_path
+        
+        # Transcribe the (possibly trimmed) audio
+        segments, info = whisper_model.transcribe(transcribe_file, beam_size=5, language="en")
         
         transcript_parts = []
         for segment in segments:
-            # Only process segments within the first max_seconds
-            if segment.start < max_seconds:
-                transcript_parts.append(segment.text)
-            else:
-                # Stop processing once we exceed max_seconds
-                break
+            transcript_parts.append(segment.text)
         
         transcript = " ".join(transcript_parts).strip()
         
+        # Cleanup temp files
         if tmp_path and os.path.exists(tmp_path):
             os.unlink(tmp_path)
+        if trimmed_path and os.path.exists(trimmed_path):
+            os.unlink(trimmed_path)
             
         return transcript
         
@@ -122,6 +137,8 @@ def transcribe_audio_with_whisper(audio_url, max_seconds=25):
         print(f"Transcription error for {audio_url}: {e}")
         if tmp_path and os.path.exists(tmp_path):
             os.unlink(tmp_path)
+        if trimmed_path and os.path.exists(trimmed_path):
+            os.unlink(trimmed_path)
         return None
 
 def cleanup_old_calls():
