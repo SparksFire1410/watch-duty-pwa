@@ -356,10 +356,14 @@ def index():
 
 @app.route('/api/fire-calls')
 def get_fire_calls():
+    with queue_lock:
+        queue_size = len(call_queue)
+    
     return jsonify({
         'calls': fire_calls,
         'check_start': check_start_time,
-        'check_finish': check_finish_time
+        'check_finish': check_finish_time,
+        'queue_size': queue_size
     })
 
 @app.route('/api/states')

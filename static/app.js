@@ -384,6 +384,7 @@ async function checkForNewCalls() {
         const statusEl = document.getElementById('status');
         const checkStartEl = document.getElementById('checkStart');
         const checkFinishEl = document.getElementById('checkFinish');
+        const queueStatusEl = document.getElementById('queueStatus');
         
         statusEl.textContent = '✓ Active';
         statusEl.className = 'active';
@@ -410,6 +411,15 @@ async function checkForNewCalls() {
             checkFinishEl.textContent = `Check Finish: ${finishString}`;
         } else {
             checkFinishEl.textContent = 'Check Finish: Processing...';
+        }
+        
+        // Update queue status
+        const queueSize = data.queue_size || 0;
+        queueStatusEl.textContent = `Queue: ${queueSize}`;
+        if (queueSize > 0) {
+            queueStatusEl.className = 'queue-active';
+        } else {
+            queueStatusEl.className = '';
         }
         
         const filteredCalls = filterCallsByState(data.calls);
