@@ -349,7 +349,7 @@ def recheck_recent_calls():
     finally:
         processing_lock.release()
 
-def scrape_dispatch_calls(max_rows=50, is_initial_scan=False):
+def scrape_dispatch_calls(max_rows=60, is_initial_scan=False):
     """Scan for new calls and add them to the queue"""
     global check_start_time, check_finish_time, processed_audio_urls
     
@@ -369,7 +369,7 @@ def scrape_dispatch_calls(max_rows=50, is_initial_scan=False):
             rows = table.find_all('tr')
             new_calls_found = 0
             
-            # Scan last 50 calls by default
+            # Scan last 60 calls by default
             scan_limit = max_rows
             if is_initial_scan:
                 print(f"Initial scan: checking last {scan_limit} calls...")
@@ -516,8 +516,8 @@ scheduler.add_job(func=recheck_recent_calls, trigger="interval", seconds=60)
 scheduler.start()
 
 # Run initial scan in background thread so app can start
-print("Starting initial scan of last 50 calls...")
-threading.Thread(target=lambda: scrape_dispatch_calls(max_rows=50, is_initial_scan=True), daemon=True).start()
+print("Starting initial scan of last 60 calls...")
+threading.Thread(target=lambda: scrape_dispatch_calls(max_rows=60, is_initial_scan=True), daemon=True).start()
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=False)

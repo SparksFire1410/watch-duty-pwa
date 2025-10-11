@@ -13,7 +13,7 @@ This application helps monitor emergency fire dispatch calls in real-time, with 
 - Frontend with real-time updates every 5 seconds
 
 ## Features
-- **Initial Scan**: Checks last 50 calls on startup/restart for any fire-related dispatches
+- **Initial Scan**: Checks last 60 calls on startup/restart for any fire-related dispatches
 - **Automated Web Scraping**: Checks call-log-api.edispatches.com/calls/ every 60 seconds for new dispatch calls
 - **Queue System**: All new calls are added to a processing queue to ensure no calls are missed during heavy activity
 - **State-Based Filtering**: Queue only processes calls from selected states - deselecting states immediately removes those calls from the queue
@@ -117,7 +117,7 @@ This application helps monitor emergency fire dispatch calls in real-time, with 
 - **State-based queue filtering**: Queue only processes calls from selected states; deselecting states removes those calls from queue
 - **Queue counter display**: Real-time visual indicator in banner showing number of calls waiting to be processed
 - **25-second transcription limit**: Audio is trimmed to 25 seconds before transcription for 3x faster processing (full audio kept for playback)
-- **Increased initial scan**: Now checks last 50 calls on startup (previously 30)
+- **Increased scan depth**: Now checks last 60 calls on every scan (previously 50) to ensure no calls are missed
 - **Backend deduplication**: Prevents duplicate fire calls from being added during re-checks (updates existing calls instead)
 - **Frontend deduplication**: Call count accurately reflects unique calls displayed (no count mismatch)
 - **Persistent state selection**: User's state filter choices are saved to browser localStorage and restored on reload
