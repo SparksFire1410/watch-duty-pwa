@@ -3,7 +3,7 @@ import os
 import tempfile
 import threading
 from collections import deque
-from flask import Flask, jsonify, render_template
+from flask import Flask, jsonify, render_template, request
 from flask_cors import CORS
 from bs4 import BeautifulSoup
 import requests
@@ -28,6 +28,8 @@ processed_audio_urls = set()
 processing_lock = threading.Lock()
 call_queue = deque()  # Queue for calls waiting to be processed
 queue_lock = threading.Lock()
+selected_states = set()  # Will be populated with all states by default
+states_lock = threading.Lock()
 
 FIRE_KEYWORDS = [
     r'grass[\s_-]?fire',
@@ -64,6 +66,9 @@ US_STATES = {
     "VT": "Vermont", "VA": "Virginia", "WA": "Washington", "WV": "West Virginia",
     "WI": "Wisconsin", "WY": "Wyoming"
 }
+
+# Initialize selected_states with all states
+selected_states.update(US_STATES.values())
 
 def extract_state_from_location(location):
     parts = location.split(',')
@@ -318,19 +323,24 @@ def scrape_dispatch_calls(max_rows=50, is_initial_scan=False):
                         timestamp = cols[3].text.strip()
                         state = extract_state_from_location(location)
                         
-                        # Add to queue if not already processed
+                        # Add to queue if not already processed AND state is selected
                         if audio_url not in processed_audio_urls:
-                            call_info = {
-                                'audio_url': audio_url,
-                                'agency': agency,
-                                'location': location,
-                                'state': state,
-                                'timestamp': timestamp
-                            }
+                            # Check if this state is selected
+                            with states_lock:
+                                state_is_selected = state in selected_states
                             
-                            with queue_lock:
-                                call_queue.append(call_info)
-                            new_calls_found += 1
+                            if state_is_selected:
+                                call_info = {
+                                    'audio_url': audio_url,
+                                    'agency': agency,
+                                    'location': location,
+                                    'state': state,
+                                    'timestamp': timestamp
+                                }
+                                
+                                with queue_lock:
+                                    call_queue.append(call_info)
+                                new_calls_found += 1
             
             if new_calls_found > 0:
                 with queue_lock:
@@ -391,6 +401,46 @@ def delete_fire_call(call_id):
         return jsonify({'success': True, 'message': 'Call dismissed'})
     else:
         return jsonify({'success': False, 'message': 'Call not found'}), 404
+
+@app.route('/api/state-filter', methods=['POST'])
+def update_state_filter():
+    """Update which states to monitor"""
+    global selected_states
+    
+    try:
+        data = request.get_json()
+        states = data.get('states', [])
+        
+        with states_lock:
+            selected_states = set(states)
+        
+        # Remove calls from queue that are no longer in selected states
+        with queue_lock:
+            filtered_queue = deque()
+            removed_count = 0
+            
+            for call_info in call_queue:
+                if call_info['state'] in selected_states:
+                    filtered_queue.append(call_info)
+                else:
+                    removed_count += 1
+            
+            call_queue.clear()
+            call_queue.extend(filtered_queue)
+            queue_size = len(call_queue)
+        
+        print(f"State filter updated: {len(selected_states)} states selected, removed {removed_count} calls from queue")
+        
+        return jsonify({
+            'success': True, 
+            'selected_count': len(selected_states),
+            'queue_size': queue_size,
+            'removed_from_queue': removed_count
+        })
+        
+    except Exception as e:
+        print(f"Error updating state filter: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 400
 
 scheduler = BackgroundScheduler()
 scheduler.add_job(func=scrape_dispatch_calls, trigger="interval", seconds=60)

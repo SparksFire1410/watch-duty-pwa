@@ -16,6 +16,7 @@ This application helps monitor emergency fire dispatch calls in real-time, with 
 - **Initial Scan**: Checks last 50 calls on startup/restart for any fire-related dispatches
 - **Automated Web Scraping**: Checks call-log-api.edispatches.com/calls/ every 60 seconds for new dispatch calls
 - **Queue System**: All new calls are added to a processing queue to ensure no calls are missed during heavy activity
+- **State-Based Filtering**: Queue only processes calls from selected states - deselecting states immediately removes those calls from the queue
 - **Speech-to-Text Transcription**: Uses faster-whisper AI to transcribe dispatch audio and detect fire keywords
   - Transcribes only first 25 seconds of audio for speed (full audio file available for playback)
   - Detects: grass fire, brush fire, wildland fire, wildfire, natural cover fire, vegetation fire, pasture fire, hay field fire, hay fire, ditch fire, tree fire, trees on fire, bush fire, bushes on fire, controlled burn, out of control burn, smoke (all variations)
@@ -112,6 +113,8 @@ This application helps monitor emergency fire dispatch calls in real-time, with 
 - **Mobile-responsive design**: Optimized layout and touch-friendly controls for phones and tablets
 - **Optimized Whisper model**: Uses "small" model for better transcription accuracy
 - **Queue system implemented**: New calls are queued to prevent missing calls during heavy activity periods
+- **State-based queue filtering**: Queue only processes calls from selected states; deselecting states removes those calls from queue
+- **Queue counter display**: Real-time visual indicator in banner showing number of calls waiting to be processed
 - **25-second transcription limit**: Audio is trimmed to 25 seconds before transcription for 3x faster processing (full audio kept for playback)
 - **Increased initial scan**: Now checks last 50 calls on startup (previously 30)
 - Configured workflow to run on port 5000

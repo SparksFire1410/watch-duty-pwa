@@ -19,6 +19,8 @@ function loadSelectedStates() {
     } else {
         selectedStates = new Set();
     }
+    // Send initial state selection to backend
+    updateBackendStateFilter();
 }
 
 function toggleStateFilter() {
@@ -66,6 +68,28 @@ function initAudioContext() {
 
 function saveSelectedStates() {
     localStorage.setItem('selectedStates', JSON.stringify([...selectedStates]));
+    updateBackendStateFilter();
+}
+
+async function updateBackendStateFilter() {
+    try {
+        const response = await fetch('/api/state-filter', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                states: [...selectedStates]
+            })
+        });
+        
+        const data = await response.json();
+        if (data.success) {
+            console.log(`State filter updated: ${data.selected_count} states, removed ${data.removed_from_queue} from queue`);
+        }
+    } catch (error) {
+        console.error('Error updating backend state filter:', error);
+    }
 }
 
 function selectAllStates() {
