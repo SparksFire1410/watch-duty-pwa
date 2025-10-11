@@ -2,6 +2,7 @@ import re
 import os
 import tempfile
 import threading
+from collections import deque
 from flask import Flask, jsonify, render_template
 from flask_cors import CORS
 from bs4 import BeautifulSoup
@@ -24,6 +25,8 @@ check_start_time = None
 check_finish_time = None
 processed_audio_urls = set()
 processing_lock = threading.Lock()
+call_queue = deque()  # Queue for calls waiting to be processed
+queue_lock = threading.Lock()
 
 FIRE_KEYWORDS = [
     r'grass[\s_-]?fire',
@@ -85,7 +88,8 @@ def is_fire_call_in_transcript(transcript):
     
     return False
 
-def transcribe_audio_with_whisper(audio_url):
+def transcribe_audio_with_whisper(audio_url, max_seconds=25):
+    """Transcribe audio, but only process first max_seconds (default 25) for speed"""
     tmp_path = None
     
     try:
@@ -100,7 +104,12 @@ def transcribe_audio_with_whisper(audio_url):
         
         transcript_parts = []
         for segment in segments:
-            transcript_parts.append(segment.text)
+            # Only process segments within the first max_seconds
+            if segment.start < max_seconds:
+                transcript_parts.append(segment.text)
+            else:
+                # Stop processing once we exceed max_seconds
+                break
         
         transcript = " ".join(transcript_parts).strip()
         
@@ -157,6 +166,59 @@ def cleanup_old_calls():
     except Exception as e:
         print(f"Error during cleanup: {e}")
 
+def process_call_queue():
+    """Process calls from the queue"""
+    global fire_calls
+    
+    if not processing_lock.acquire(blocking=False):
+        return
+    
+    try:
+        processed_count = 0
+        max_per_cycle = 15  # Process up to 15 calls per cycle
+        
+        while processed_count < max_per_cycle:
+            with queue_lock:
+                if not call_queue:
+                    break
+                call_info = call_queue.popleft()
+            
+            print(f"Processing queued call from {call_info['agency']} at {call_info['location']}")
+            
+            # Transcribe only first 25 seconds for speed
+            transcript = transcribe_audio_with_whisper(call_info['audio_url'], max_seconds=25)
+            
+            # Mark as processed
+            processed_audio_urls.add(call_info['audio_url'])
+            
+            if transcript and is_fire_call_in_transcript(transcript):
+                call_data = {
+                    'audio_url': call_info['audio_url'],  # Keep full audio for playback
+                    'agency': call_info['agency'],
+                    'location': call_info['location'],
+                    'state': call_info['state'],
+                    'timestamp': call_info['timestamp'],
+                    'transcript': transcript,
+                    'first_detected': datetime.utcnow().isoformat() + 'Z',
+                    'id': call_info['audio_url']
+                }
+                
+                fire_calls.insert(0, call_data)
+                print(f"🔥 FIRE CALL DETECTED: {call_info['agency']} - {call_info['location']}")
+                print(f"   Transcript (25s): {transcript[:100]}...")
+            
+            processed_count += 1
+        
+        if processed_count > 0:
+            with queue_lock:
+                queue_size = len(call_queue)
+            print(f"Queue processing: {processed_count} calls processed, {queue_size} remaining in queue")
+            
+    except Exception as e:
+        print(f"Error processing queue: {e}")
+    finally:
+        processing_lock.release()
+
 def recheck_recent_calls():
     """Re-check audio for calls detected in the last 10 minutes to see if full audio is available"""
     global fire_calls
@@ -203,19 +265,13 @@ def recheck_recent_calls():
     finally:
         processing_lock.release()
 
-def scrape_dispatch_calls(max_rows=20, max_process=15, is_initial_scan=False):
-    global fire_calls, check_start_time, check_finish_time, processed_audio_urls
-    
-    # Use lock to prevent concurrent execution
-    if not processing_lock.acquire(blocking=False):
-        print("Scan already in progress, skipping...")
-        return
+def scrape_dispatch_calls(max_rows=50, is_initial_scan=False):
+    """Scan for new calls and add them to the queue"""
+    global check_start_time, check_finish_time, processed_audio_urls
     
     try:
         # Set check start time at the start of the scan
         check_start_time = datetime.utcnow().isoformat() + 'Z'
-        
-        new_fire_calls_count = 0
         
         url = "https://call-log-api.edispatches.com/calls/"
         response = requests.get(url, timeout=30)
@@ -227,9 +283,9 @@ def scrape_dispatch_calls(max_rows=20, max_process=15, is_initial_scan=False):
         
         if table:
             rows = table.find_all('tr')
-            new_calls_to_process = []
+            new_calls_found = 0
             
-            # First pass: collect new calls
+            # Scan last 50 calls by default
             scan_limit = max_rows
             if is_initial_scan:
                 print(f"Initial scan: checking last {scan_limit} calls...")
@@ -245,49 +301,33 @@ def scrape_dispatch_calls(max_rows=20, max_process=15, is_initial_scan=False):
                         timestamp = cols[3].text.strip()
                         state = extract_state_from_location(location)
                         
+                        # Add to queue if not already processed
                         if audio_url not in processed_audio_urls:
-                            new_calls_to_process.append({
+                            call_info = {
                                 'audio_url': audio_url,
                                 'agency': agency,
                                 'location': location,
                                 'state': state,
                                 'timestamp': timestamp
-                            })
+                            }
+                            
+                            with queue_lock:
+                                call_queue.append(call_info)
+                            new_calls_found += 1
             
-            # Second pass: transcribe and filter
-            for call_info in new_calls_to_process[:max_process]:
-                print(f"Processing new call from {call_info['agency']} at {call_info['location']}")
-                
-                transcript = transcribe_audio_with_whisper(call_info['audio_url'])
-                
-                # Mark as processed after transcription attempt
-                processed_audio_urls.add(call_info['audio_url'])
-                
-                if transcript and is_fire_call_in_transcript(transcript):
-                    call_data = {
-                        'audio_url': call_info['audio_url'],
-                        'agency': call_info['agency'],
-                        'location': call_info['location'],
-                        'state': call_info['state'],
-                        'timestamp': call_info['timestamp'],
-                        'transcript': transcript,
-                        'first_detected': datetime.utcnow().isoformat() + 'Z',
-                        'id': call_info['audio_url']
-                    }
-                    
-                    fire_calls.insert(0, call_data)
-                    new_fire_calls_count += 1
-                    print(f"🔥 FIRE CALL DETECTED: {call_info['agency']} - {call_info['location']}")
-                    print(f"   Transcript: {transcript[:100]}...")
+            if new_calls_found > 0:
+                with queue_lock:
+                    queue_size = len(call_queue)
+                print(f"Scan complete. Added {new_calls_found} new calls to queue (Queue size: {queue_size})")
+            else:
+                print(f"Scan complete. No new calls found")
         
         # Set check finish time at the end of the scan
         check_finish_time = datetime.utcnow().isoformat() + 'Z'
-        print(f"Scan complete. Found {new_fire_calls_count} new fire calls (Total: {len(fire_calls)})")
         
     except Exception as e:
         print(f"Error scraping dispatch calls: {e}")
-    finally:
-        processing_lock.release()
+        check_finish_time = datetime.utcnow().isoformat() + 'Z'
 
 @app.route('/')
 def index():
@@ -333,12 +373,13 @@ def delete_fire_call(call_id):
 
 scheduler = BackgroundScheduler()
 scheduler.add_job(func=scrape_dispatch_calls, trigger="interval", seconds=60)
+scheduler.add_job(func=process_call_queue, trigger="interval", seconds=10)  # Process queue every 10 seconds
 scheduler.add_job(func=recheck_recent_calls, trigger="interval", seconds=60)
 scheduler.start()
 
 # Run initial scan in background thread so app can start
-print("Starting initial scan of last 30 calls...")
-threading.Thread(target=lambda: scrape_dispatch_calls(max_rows=30, max_process=30, is_initial_scan=True), daemon=True).start()
+print("Starting initial scan of last 50 calls...")
+threading.Thread(target=lambda: scrape_dispatch_calls(max_rows=50, is_initial_scan=True), daemon=True).start()
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=False)
