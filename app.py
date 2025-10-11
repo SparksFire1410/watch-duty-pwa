@@ -30,6 +30,8 @@ call_queue = deque()  # Queue for calls waiting to be processed
 queue_lock = threading.Lock()
 selected_states = set()  # Will be populated with all states by default
 states_lock = threading.Lock()
+state_call_tracking = {}  # Track calls by state: {state: [(timestamp, call_info), ...]}
+MAX_CALLS_PER_STATE = 20  # Only keep last 20 calls per state in queue
 
 FIRE_KEYWORDS = [
     r'grass[\s_-]?fire',
@@ -350,8 +352,8 @@ def recheck_recent_calls():
         processing_lock.release()
 
 def scrape_dispatch_calls(max_rows=60, is_initial_scan=False):
-    """Scan for new calls and add them to the queue"""
-    global check_start_time, check_finish_time, processed_audio_urls
+    """Scan for new calls - keep only last 20 calls per state within last hour"""
+    global check_start_time, check_finish_time, processed_audio_urls, state_call_tracking
     
     try:
         # Set check start time at the start of the scan
@@ -367,12 +369,15 @@ def scrape_dispatch_calls(max_rows=60, is_initial_scan=False):
         
         if table:
             rows = table.find_all('tr')
-            new_calls_found = 0
+            one_hour_ago = datetime.utcnow() - timedelta(hours=1)
             
-            # Scan last 60 calls by default
+            # Scan last 60 calls
             scan_limit = max_rows
             if is_initial_scan:
-                print(f"Initial scan: checking last {scan_limit} calls...")
+                print(f"Initial scan: checking last {scan_limit} calls (max 20 per selected state)...")
+            
+            # Temp storage for this scan
+            scan_calls_by_state = {}
             
             for row in rows[:scan_limit]:
                 cols = row.find_all('td')
@@ -382,37 +387,65 @@ def scrape_dispatch_calls(max_rows=60, is_initial_scan=False):
                         audio_url = audio_tag.get('src')
                         agency = cols[1].text.strip()
                         location = cols[2].text.strip()
-                        timestamp = cols[3].text.strip()
+                        timestamp_str = cols[3].text.strip()
                         state = extract_state_from_location(location)
                         
-                        # Add to queue if not already processed AND state is selected AND not EMS-only
-                        if audio_url not in processed_audio_urls:
-                            # Check if this state is selected
-                            with states_lock:
-                                state_is_selected = state in selected_states
-                            
-                            if state_is_selected:
-                                # Skip EMS-only agencies before adding to queue (saves processing time)
-                                if is_ems_only_agency(agency):
-                                    processed_audio_urls.add(audio_url)  # Mark as processed
-                                    continue
-                                
-                                call_info = {
-                                    'audio_url': audio_url,
-                                    'agency': agency,
-                                    'location': location,
-                                    'state': state,
-                                    'timestamp': timestamp
-                                }
-                                
-                                with queue_lock:
-                                    call_queue.append(call_info)
-                                new_calls_found += 1
+                        # Check if state is selected
+                        with states_lock:
+                            state_is_selected = state in selected_states
+                        
+                        if not state_is_selected:
+                            continue
+                        
+                        # Skip EMS-only agencies
+                        if is_ems_only_agency(agency):
+                            processed_audio_urls.add(audio_url)
+                            continue
+                        
+                        # Parse timestamp to check if within last hour
+                        try:
+                            call_time = datetime.strptime(timestamp_str, '%Y-%m-%d %H:%M:%S')
+                            if call_time < one_hour_ago:
+                                continue  # Skip calls older than 1 hour
+                        except:
+                            # If can't parse, include it anyway
+                            call_time = datetime.utcnow()
+                        
+                        call_info = {
+                            'audio_url': audio_url,
+                            'agency': agency,
+                            'location': location,
+                            'state': state,
+                            'timestamp': timestamp_str,
+                            'call_time': call_time
+                        }
+                        
+                        # Add to temp state tracking
+                        if state not in scan_calls_by_state:
+                            scan_calls_by_state[state] = []
+                        scan_calls_by_state[state].append(call_info)
             
-            if new_calls_found > 0:
-                with queue_lock:
-                    queue_size = len(call_queue)
-                print(f"Scan complete. Added {new_calls_found} new calls to queue (Queue size: {queue_size})")
+            # Now rebuild queue: keep only last 20 calls per state
+            with queue_lock:
+                call_queue.clear()  # Clear existing queue
+                
+                for state, calls in scan_calls_by_state.items():
+                    # Sort by timestamp (most recent first) and keep last 20
+                    calls.sort(key=lambda x: x['call_time'], reverse=True)
+                    recent_calls = calls[:MAX_CALLS_PER_STATE]
+                    
+                    for call_info in recent_calls:
+                        # Only add if not already processed
+                        if call_info['audio_url'] not in processed_audio_urls:
+                            # Remove call_time before adding to queue (not needed anymore)
+                            queue_call = {k: v for k, v in call_info.items() if k != 'call_time'}
+                            call_queue.append(queue_call)
+                
+                queue_size = len(call_queue)
+                state_call_tracking = scan_calls_by_state  # Update global tracking
+            
+            if queue_size > 0:
+                print(f"Scan complete. Queue rebuilt: {queue_size} calls (max 20 per state)")
             else:
                 print(f"Scan complete. No new calls found")
         
