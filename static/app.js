@@ -126,9 +126,6 @@ async function loadStates() {
         const data = await response.json();
         const stateGrid = document.getElementById('stateGrid');
         
-        // Check if no states are selected (first load)
-        const isFirstLoad = selectedStates.size === 0;
-        
         data.states.forEach(state => {
             const div = document.createElement('div');
             div.className = 'state-checkbox';
@@ -137,15 +134,7 @@ async function loadStates() {
             checkbox.type = 'checkbox';
             checkbox.value = state;
             checkbox.id = `state-${state}`;
-            
-            // If first load, select all states by default
-            if (isFirstLoad) {
-                checkbox.checked = true;
-                selectedStates.add(state);
-            } else {
-                checkbox.checked = selectedStates.has(state);
-            }
-            
+            checkbox.checked = selectedStates.has(state);
             checkbox.onchange = (e) => handleStateChange(state, e.target.checked);
             
             const label = document.createElement('label');
@@ -157,14 +146,8 @@ async function loadStates() {
             stateGrid.appendChild(div);
         });
         
-        // If first load, save the selected states and update backend
-        if (isFirstLoad) {
-            saveSelectedStates();
-            updateBackendStateFilter();
-        } else {
-            // Always send current state filter to backend on load
-            updateBackendStateFilter();
-        }
+        // Always send current state filter to backend on load
+        updateBackendStateFilter();
     } catch (error) {
         console.error('Error loading states:', error);
     }

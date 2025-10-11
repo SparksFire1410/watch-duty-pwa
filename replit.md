@@ -119,7 +119,7 @@ This application helps monitor emergency fire dispatch calls in real-time, with 
 - **Increased initial scan**: Now checks last 50 calls on startup (previously 30)
 - **Backend deduplication**: Prevents duplicate fire calls from being added during re-checks (updates existing calls instead)
 - **Frontend deduplication**: Call count accurately reflects unique calls displayed (no count mismatch)
-- **Default state selection**: All 50 states selected by default on first load for immediate monitoring
+- **Persistent state selection**: User's state filter choices are saved to browser localStorage and restored on reload
 - Configured workflow to run on port 5000
 
 ## API Endpoints
