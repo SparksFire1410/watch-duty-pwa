@@ -34,7 +34,12 @@ FIRE_KEYWORDS = [
     r'pasture[\s_-]?fire',
     r'hay[\s_-]?field[\s_-]?fire',
     r'hay[\s_-]?fire',
-    r'ditch[\s_-]?fire'
+    r'ditch[\s_-]?fire',
+    r'trees?[\s_-]?on[\s_-]?fire',
+    r'tree[\s_-]?fire',
+    r'bushes?[\s_-]?on[\s_-]?fire',
+    r'bush[\s_-]?on[\s_-]?fire',
+    r'bush[\s_-]?fire'
 ]
 
 US_STATES = {
