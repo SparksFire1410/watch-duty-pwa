@@ -1,3 +1,6 @@
+import logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
 import re
 import os
 import tempfile
@@ -398,6 +401,12 @@ def recheck_recent_calls():
         processing_lock.release()
 
 def scrape_dispatch_calls(max_rows=60, is_initial_scan=False):
+    logging.info("Fetching dispatch data...")
+    # Code to fetch dispatch data (e.g., API call)
+    logging.info("Initializing Whisper model...")
+    # Code to initialize Whisper model
+    logging.info("Processing calls...")
+    # Code to process calls
     """Scan for new calls - keep only last 20 calls per state (timezone-safe)"""
     global check_start_time, check_finish_time, processed_audio_urls, state_call_tracking
     
@@ -593,7 +602,7 @@ scheduler.add_job(func=recheck_recent_calls, trigger="interval", seconds=60, max
 scheduler.start()
 
 # Run initial scan in background thread so app can start
-print("Starting initial scan of last 60 calls...")
+logging.info("Starting initial scan of last 60 calls...")
 threading.Thread(target=lambda: scrape_dispatch_calls(max_rows=60, is_initial_scan=True), daemon=True).start()
 
 if __name__ == '__main__':
