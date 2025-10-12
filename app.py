@@ -34,24 +34,57 @@ state_call_tracking = {}  # Track calls by state: {state: [(timestamp, call_info
 MAX_CALLS_PER_STATE = 20  # Only keep last 20 calls per state in queue
 
 FIRE_KEYWORDS = [
+    # Grass fire variants
     r'grass[\s_-]?fire',
-    r'brush[\s_-]?fire', 
+    r'grass[\s_-]?on[\s_-]?fire',
+    
+    # Brush fire variants
+    r'brush[\s_-]?fire',
+    r'brush[\s_-]?on[\s_-]?fire',
+    
+    # Wildland/wildfire variants
     r'wildland[\s_-]?fire',
     r'wild[\s_-]?fire',
+    
+    # Natural cover fire
     r'natural[\s_-]?cover[\s_-]?fire',
+    
+    # Vegetation fire variants
     r'vegetation[\s_-]?fire',
+    r'vegetation[\s_-]?on[\s_-]?fire',
+    
+    # Pasture fire variants
     r'pasture[\s_-]?fire',
+    r'pasture[\s_-]?on[\s_-]?fire',
+    
+    # Hay fire variants
     r'hay[\s_-]?field[\s_-]?fire',
     r'hay[\s_-]?fire',
+    r'hay[\s_-]?on[\s_-]?fire',
+    
+    # Ditch fire variants
     r'ditch[\s_-]?fire',
+    r'ditch[\s_-]?on[\s_-]?fire',
+    
+    # Tree fire variants
     r'trees?[\s_-]?on[\s_-]?fire',
     r'tree[\s_-]?fire',
+    
+    # Bush fire variants
     r'bushes?[\s_-]?on[\s_-]?fire',
     r'bush[\s_-]?on[\s_-]?fire',
     r'bush[\s_-]?fire',
+    
+    # Controlled burn
     r'controlled[\s_-]?burn',
+    
+    # Smoke variants
     r'\bsmoke\b',
-    r'\bsmoking\b'
+    r'\bsmoking\b',
+    
+    # Structure in danger
+    r'structures?[\s_-]?in[\s_-]?danger',
+    r'structures?[\s_-]?threatened'
 ]
 
 US_STATES = {
@@ -266,33 +299,38 @@ def process_call_queue():
             # Mark as processed
             processed_audio_urls.add(call_info['audio_url'])
             
-            if transcript and is_fire_call_in_transcript(transcript):
-                # Check if this call already exists
-                call_id = call_info['audio_url']
-                existing_call = next((c for c in fire_calls if c['id'] == call_id), None)
-                
-                if existing_call:
-                    # Update existing call with new transcript if different
-                    if existing_call.get('transcript') != transcript:
-                        existing_call['transcript'] = transcript
-                        print(f"🔄 UPDATED: {call_info['agency']} - {call_info['location']}")
-                        print(f"   New transcript (25s): {transcript[:100]}...")
-                else:
-                    # Add new call
-                    call_data = {
-                        'audio_url': call_info['audio_url'],  # Keep full audio for playback
-                        'agency': call_info['agency'],
-                        'location': call_info['location'],
-                        'state': call_info['state'],
-                        'timestamp': call_info['timestamp'],
-                        'transcript': transcript,
-                        'first_detected': datetime.utcnow().isoformat() + 'Z',
-                        'id': call_info['audio_url']
-                    }
+            if transcript:
+                if is_fire_call_in_transcript(transcript):
+                    # Check if this call already exists
+                    call_id = call_info['audio_url']
+                    existing_call = next((c for c in fire_calls if c['id'] == call_id), None)
                     
-                    fire_calls.insert(0, call_data)
-                    print(f"🔥 FIRE CALL DETECTED: {call_info['agency']} - {call_info['location']}")
-                    print(f"   Transcript (25s): {transcript[:100]}...")
+                    if existing_call:
+                        # Update existing call with new transcript if different
+                        if existing_call.get('transcript') != transcript:
+                            existing_call['transcript'] = transcript
+                            print(f"🔄 UPDATED: {call_info['agency']} - {call_info['location']}")
+                            print(f"   New transcript (25s): {transcript[:100]}...")
+                    else:
+                        # Add new call
+                        call_data = {
+                            'audio_url': call_info['audio_url'],  # Keep full audio for playback
+                            'agency': call_info['agency'],
+                            'location': call_info['location'],
+                            'state': call_info['state'],
+                            'timestamp': call_info['timestamp'],
+                            'transcript': transcript,
+                            'first_detected': datetime.utcnow().isoformat() + 'Z',
+                            'id': call_info['audio_url']
+                        }
+                        
+                        fire_calls.insert(0, call_data)
+                        print(f"🔥 FIRE CALL DETECTED: {call_info['agency']} - {call_info['location']}")
+                        print(f"   Transcript (25s): {transcript[:100]}...")
+                else:
+                    # Log rejected calls for debugging
+                    print(f"❌ No fire keywords detected in {call_info['agency']}")
+                    print(f"   Transcript: {transcript[:150]}...")
             
             processed_count += 1
         
