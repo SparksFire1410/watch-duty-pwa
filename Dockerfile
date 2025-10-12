@@ -3,7 +3,6 @@ RUN apt-get update && apt-get install -y ffmpeg
 WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
-# Set cache directory for Hugging Face
 ENV HF_HOME=/app/.cache
 RUN mkdir -p /app/.cache && chmod -R 777 /app/.cache
 COPY . .
