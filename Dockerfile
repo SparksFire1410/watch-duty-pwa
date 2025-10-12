@@ -1,15 +1,8 @@
-FROM python:3.11-slim
-
-# Install system dependencies for ffmpeg and audio processing
+FROM python:3.11
 RUN apt-get update && apt-get install -y ffmpeg
-
-# Copy your project files
-COPY . /app
 WORKDIR /app
-
-# Install UV and dependencies
-RUN pip install uv
-RUN uv sync --frozen
-
-# Run the app
-CMD ["uv", "run", "python", "app.py"]
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+COPY . .
+EXPOSE 5000
+CMD ["python", "app.py"]
