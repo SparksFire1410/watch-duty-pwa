@@ -585,10 +585,11 @@ def update_state_filter():
         print(f"Error updating state filter: {e}")
         return jsonify({'success': False, 'error': str(e)}), 400
 
-scheduler = BackgroundScheduler()
-scheduler.add_job(func=scrape_dispatch_calls, trigger="interval", seconds=60)
-scheduler.add_job(func=process_call_queue, trigger="interval", seconds=10)  # Process queue every 10 seconds
-scheduler.add_job(func=recheck_recent_calls, trigger="interval", seconds=60)
+from apscheduler.schedulers.background import BackgroundScheduler
+scheduler = BackgroundScheduler({'apscheduler.job_defaults.max_instances': 2})
+scheduler.add_job(func=scrape_dispatch_calls, trigger="interval", seconds=60, max_instances=2)
+scheduler.add_job(func=process_call_queue, trigger="interval", seconds=30, max_instances=2)
+scheduler.add_job(func=recheck_recent_calls, trigger="interval", seconds=60, max_instances=2)
 scheduler.start()
 
 # Run initial scan in background thread so app can start
