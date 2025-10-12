@@ -17,6 +17,9 @@ from pydub import AudioSegment
 
 
 app = Flask(__name__)
+@app.route('/health')
+def health():
+    return jsonify({"status": "healthy"}), 200
 CORS(app)
 
 whisper_model = None  # Will load on first use
@@ -602,8 +605,8 @@ scheduler.add_job(func=recheck_recent_calls, trigger="interval", seconds=60, max
 scheduler.start()
 
 # Run initial scan in background thread so app can start
-logging.info("Starting initial scan of last 60 calls...")
-threading.Thread(target=lambda: scrape_dispatch_calls(max_rows=60, is_initial_scan=True), daemon=True).start()
+logging.info("Starting initial scan of last 10 calls...")
+threading.Thread(target=lambda: scrape_dispatch_calls(max_rows=10, is_initial_scan=True), daemon=True).start()
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=False)
