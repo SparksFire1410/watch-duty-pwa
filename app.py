@@ -8,9 +8,10 @@ from flask_cors import CORS
 from bs4 import BeautifulSoup
 import requests
 from apscheduler.schedulers.background import BackgroundScheduler
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from faster_whisper import WhisperModel
 from pydub import AudioSegment
+
 
 app = Flask(__name__)
 CORS(app)
@@ -402,7 +403,7 @@ def scrape_dispatch_calls(max_rows=60, is_initial_scan=False):
     
     try:
         # Set check start time at the start of the scan
-        check_start_time = datetime.utcnow().isoformat() + 'Z'
+        check_start_time = datetime.now(timezone.utc).isoformat() + 'Z'
         
         url = "https://call-log-api.edispatches.com/calls/"
         response = requests.get(url, timeout=30)
@@ -492,7 +493,7 @@ def scrape_dispatch_calls(max_rows=60, is_initial_scan=False):
                 print(f"Scan complete. No new calls found")
         
         # Set check finish time at the end of the scan
-        check_finish_time = datetime.utcnow().isoformat() + 'Z'
+        check_finish_time = datetime.now(timezone.utc).isoformat() + 'Z'
         
     except Exception as e:
         print(f"Error scraping dispatch calls: {e}")
