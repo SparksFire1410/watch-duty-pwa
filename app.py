@@ -15,12 +15,17 @@ from datetime import datetime, timedelta, timezone
 from faster_whisper import WhisperModel
 from pydub import AudioSegment
 
-
 app = Flask(__name__)
-@app.route('/health')
-def health():
-    return jsonify({"status": "healthy"}), 200
 CORS(app)
+
+@app.route('/api/health')
+def health():
+    return jsonify({
+        'status': 'running',
+        'check_start': check_start_time,
+        'check_finish': check_finish_time,
+        'fire_calls_count': len(fire_calls)
+    })
 
 whisper_model = None  # Will load on first use
 # Initialize Whisper model (small model for better accuracy)
