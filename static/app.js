@@ -1,3 +1,10 @@
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/static/sw.js')
+      .then((reg) => console.log('Service Worker registered!', reg))
+      .catch((err) => console.log('Service Worker registration failed:', err));
+  });
+}
 let selectedStates = new Set();
 let knownCallIds = new Set();
 let highlightedCalls = new Set();
