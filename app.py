@@ -15,11 +15,11 @@ from pydub import AudioSegment
 app = Flask(__name__)
 CORS(app)
 
+whisper_model = None  # Will load on first use
 # Initialize Whisper model (small model for better accuracy)
 # Using int8 quantization for CPU efficiency
-print("Loading Whisper model...")
-whisper_model = WhisperModel("small", device="cpu", compute_type="int8")
-print("Whisper model loaded successfully")
+
+
 
 fire_calls = []
 check_start_time = None
@@ -132,6 +132,12 @@ def is_fire_call_in_transcript(transcript):
 
 def transcribe_audio_with_whisper(audio_url, max_seconds=25):
     """Transcribe audio, but only process first max_seconds (default 25) for speed"""
+    global whisper_model
+    if whisper_model is None:
+        print("Loading Whisper model...")
+        whisper_model = WhisperModel("small", device="cpu", compute_type="int8")
+        print("Whisper model loaded successfully")
+        
     tmp_path = None
     trimmed_path = None
     
