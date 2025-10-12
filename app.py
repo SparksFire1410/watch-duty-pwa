@@ -540,14 +540,7 @@ def get_fire_calls():
 def get_states():
     return jsonify({'states': list(US_STATES.values())})
 
-@app.route('/api/health')
-def health():
-    return jsonify({
-        'status': 'running',
-        'check_start': check_start_time,
-        'check_finish': check_finish_time,
-        'fire_calls_count': len(fire_calls)
-    })
+
 
 @app.route('/api/fire-calls/<path:call_id>', methods=['DELETE'])
 def delete_fire_call(call_id):
