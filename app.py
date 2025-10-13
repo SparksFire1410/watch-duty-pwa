@@ -28,9 +28,6 @@ def health():
     })
 
 whisper_model = None  # Will load on first use
-# Initialize Whisper model (small model for better accuracy)
-# Using int8 quantization for CPU efficiency
-
 
 
 fire_calls = []
@@ -301,7 +298,7 @@ def process_call_queue():
     
     try:
         processed_count = 0
-        max_per_cycle = 15  # Process up to 15 calls per cycle
+        max_per_cycle = 5  # Process up to 5 calls per cycle
         
         while processed_count < max_per_cycle:
             with queue_lock:
@@ -408,39 +405,25 @@ def recheck_recent_calls():
     finally:
         processing_lock.release()
 
-def scrape_dispatch_calls(max_rows=60, is_initial_scan=False):
+def scrape_dispatch_calls(max_rows=10, is_initial_scan=False):
     logging.info("Fetching dispatch data...")
-    # Code to fetch dispatch data (e.g., API call)
-    logging.info("Initializing Whisper model...")
-    # Code to initialize Whisper model
-    logging.info("Processing calls...")
-    # Code to process calls
     """Scan for new calls - keep only last 20 calls per state (timezone-safe)"""
     global check_start_time, check_finish_time, processed_audio_urls, state_call_tracking
-    
     try:
         # Set check start time at the start of the scan
         check_start_time = datetime.now(timezone.utc).isoformat() + 'Z'
-        
         url = "https://call-log-api.edispatches.com/calls/"
         response = requests.get(url, timeout=30)
         response.raise_for_status()
-        
         soup = BeautifulSoup(response.content, 'html.parser')
-        
         table = soup.find('table')
-        
         if table:
             rows = table.find_all('tr')
-            
-            # Scan last 60 calls
             scan_limit = max_rows
             if is_initial_scan:
                 print(f"Initial scan: checking last {scan_limit} calls (max 20 per selected state)...")
-            
             # Temp storage for this scan
             scan_calls_by_state = {}
-            
             for row in rows[:scan_limit]:
                 cols = row.find_all('td')
                 if len(cols) >= 4:
@@ -451,26 +434,20 @@ def scrape_dispatch_calls(max_rows=60, is_initial_scan=False):
                         location = cols[2].text.strip()
                         timestamp_str = cols[3].text.strip()
                         state = extract_state_from_location(location)
-                        
                         # Check if state is selected
                         with states_lock:
                             state_is_selected = state in selected_states
-                        
                         if not state_is_selected:
                             continue
-                        
                         # Skip EMS-only agencies
                         if is_ems_only_agency(agency):
                             processed_audio_urls.add(audio_url)
                             continue
-                        
-                        # Parse timestamp for sorting (no time filtering since timestamps are in local time zones)
+                        # Parse timestamp for sorting
                         try:
                             call_time = datetime.strptime(timestamp_str, '%Y-%m-%d %H:%M:%S')
                         except:
-                            # If can't parse, use current time for sorting
                             call_time = datetime.utcnow()
-                        
                         call_info = {
                             'audio_url': audio_url,
                             'agency': agency,
@@ -479,39 +456,26 @@ def scrape_dispatch_calls(max_rows=60, is_initial_scan=False):
                             'timestamp': timestamp_str,
                             'call_time': call_time
                         }
-                        
-                        # Add to temp state tracking
                         if state not in scan_calls_by_state:
                             scan_calls_by_state[state] = []
                         scan_calls_by_state[state].append(call_info)
-            
-            # Now rebuild queue: keep only last 20 calls per state
+            # Rebuild queue: keep only last 20 calls per state
             with queue_lock:
-                call_queue.clear()  # Clear existing queue
-                
+                call_queue.clear()
                 for state, calls in scan_calls_by_state.items():
-                    # Sort by timestamp (most recent first) and keep last 20
                     calls.sort(key=lambda x: x['call_time'], reverse=True)
                     recent_calls = calls[:MAX_CALLS_PER_STATE]
-                    
                     for call_info in recent_calls:
-                        # Only add if not already processed
                         if call_info['audio_url'] not in processed_audio_urls:
-                            # Remove call_time before adding to queue (not needed anymore)
                             queue_call = {k: v for k, v in call_info.items() if k != 'call_time'}
                             call_queue.append(queue_call)
-                
                 queue_size = len(call_queue)
-                state_call_tracking = scan_calls_by_state  # Update global tracking
-            
+                state_call_tracking = scan_calls_by_state
             if queue_size > 0:
                 print(f"Scan complete. Queue rebuilt: {queue_size} calls (max 20 per state)")
             else:
                 print(f"Scan complete. No new calls found")
-        
-        # Set check finish time at the end of the scan
         check_finish_time = datetime.now(timezone.utc).isoformat() + 'Z'
-        
     except Exception as e:
         print(f"Error scraping dispatch calls: {e}")
         check_finish_time = datetime.utcnow().isoformat() + 'Z'
