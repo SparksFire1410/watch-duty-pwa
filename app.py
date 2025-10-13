@@ -113,7 +113,7 @@ US_STATES = {
 }
 
 # Initialize selected_states with all states
-selected_states.update(US_STATES.values())
+selected_states = set(["New Jersey", "New York", "Texas", "Illinois"])  # Default to 4 states for startup
 
 def extract_state_from_location(location):
     parts = location.split(',')
@@ -526,7 +526,7 @@ def update_state_filter():
     
     try:
         data = request.get_json()
-        states = data.get('states', [])
+        selected_states = set(states[:4])
         
         with states_lock:
             selected_states = set(states)
@@ -562,13 +562,13 @@ def update_state_filter():
 from apscheduler.schedulers.background import BackgroundScheduler
 scheduler = BackgroundScheduler({'apscheduler.job_defaults.max_instances': 2})
 scheduler.add_job(func=scrape_dispatch_calls, trigger="interval", seconds=60, max_instances=2)
-scheduler.add_job(func=process_call_queue, trigger="interval", seconds=30, max_instances=2)
+scheduler.add_job(func=process_call_queue, trigger="interval", seconds=00, max_instances=3)
 scheduler.add_job(func=recheck_recent_calls, trigger="interval", seconds=60, max_instances=2)
 scheduler.start()
 
 # Run initial scan in background thread so app can start
-logging.info("Starting initial scan of last 10 calls...")
-threading.Thread(target=lambda: scrape_dispatch_calls(max_rows=10, is_initial_scan=True), daemon=True).start()
+logging.info("Starting initial scan of last 20 calls...")
+threading.Thread(target=lambda: scrape_dispatch_calls(max_rows=20, is_initial_scan=True), daemon=True).start()
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=False)
