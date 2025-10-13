@@ -5,7 +5,7 @@ if ('serviceWorker' in navigator) {
       .catch((err) => console.log('Service Worker registration failed:', err));
   });
 }
-let selectedStates = new Set();
+let selectedStates = new Set(["New Jersey", "New York", "Texas", "Illinois"]); // Default states
 let knownCallIds = new Set();
 let highlightedCalls = new Set();
 let isAlertActive = false;
@@ -22,10 +22,17 @@ const faviconNormal = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAY
 function loadSelectedStates() {
     const saved = localStorage.getItem('selectedStates');
     if (saved) {
-        selectedStates = new Set(JSON.parse(saved));
-    } else {
-        selectedStates = new Set();
+        const savedStates = JSON.parse(saved).slice(0, 4); // Limit to 4
+        selectedStates = new Set(savedStates);
     }
+    updateStateCheckboxes();
+}
+
+function updateStateCheckboxes() {
+    const checkboxes = document.querySelectorAll('.state-checkbox input[type="checkbox"]');
+    checkboxes.forEach(cb => {
+        cb.checked = selectedStates.has(cb.value);
+    });
 }
 
 function toggleStateFilter() {
@@ -80,12 +87,8 @@ async function updateBackendStateFilter() {
     try {
         const response = await fetch('/api/state-filter', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                states: [...selectedStates]
-            })
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ states: [...selectedStates] })
         });
         
         const data = await response.json();
@@ -97,27 +100,13 @@ async function updateBackendStateFilter() {
     }
 }
 
-function selectAllStates() {
-    const checkboxes = document.querySelectorAll('.state-checkbox input[type="checkbox"]');
-    checkboxes.forEach(cb => {
-        cb.checked = true;
-        selectedStates.add(cb.value);
-    });
-    saveSelectedStates();
-    updateCallsDisplay();
-}
-
-function deselectAllStates() {
-    const checkboxes = document.querySelectorAll('.state-checkbox input[type="checkbox"]');
-    checkboxes.forEach(cb => {
-        cb.checked = false;
-        selectedStates.delete(cb.value);
-    });
-    saveSelectedStates();
-    updateCallsDisplay();
-}
-
 function handleStateChange(state, checked) {
+    if (checked && selectedStates.size >= 4 && !selectedStates.has(state)) {
+        alert('You can select up to 4 states only.');
+        const checkbox = document.getElementById(`state-${state}`);
+        checkbox.checked = false;
+        return;
+    }
     if (checked) {
         selectedStates.add(state);
     } else {
@@ -153,7 +142,6 @@ async function loadStates() {
             stateGrid.appendChild(div);
         });
         
-        // Always send current state filter to backend on load
         updateBackendStateFilter();
     } catch (error) {
         console.error('Error loading states:', error);
@@ -307,7 +295,6 @@ function updateCallsDisplay(calls = []) {
     
     const filteredCalls = filterCallsByState(calls);
     
-    // Deduplicate by ID (keep first occurrence)
     const uniqueCalls = [];
     const seenIds = new Set();
     filteredCalls.forEach(call => {
@@ -324,14 +311,12 @@ function updateCallsDisplay(calls = []) {
         return;
     }
     
-    // Get existing call IDs in the DOM
     const existingCallIds = new Set(
         Array.from(callsList.querySelectorAll('.call-card')).map(card => card.dataset.callId)
     );
     
     const currentCallIds = new Set(uniqueCalls.map(call => call.id));
     
-    // Remove calls that no longer exist
     existingCallIds.forEach(id => {
         if (!currentCallIds.has(id)) {
             const card = callsList.querySelector(`[data-call-id="${id}"]`);
@@ -339,14 +324,12 @@ function updateCallsDisplay(calls = []) {
         }
     });
     
-    // Add or update calls
     uniqueCalls.forEach((call, index) => {
         let callCard = callsList.querySelector(`[data-call-id="${call.id}"]`);
         const isNew = !knownCallIds.has(call.id);
         const isHighlighted = highlightedCalls.has(call.id);
         
         if (!callCard) {
-            // Create new call card
             const cardHTML = `
                 <div class="call-card ${isNew ? 'new' : ''} ${isHighlighted ? 'highlighted' : ''}" 
                      data-call-id="${call.id}" 
@@ -372,7 +355,6 @@ function updateCallsDisplay(calls = []) {
                 </div>
             `;
             
-            // Insert at correct position
             const existingCards = callsList.querySelectorAll('.call-card');
             if (index < existingCards.length) {
                 existingCards[index].insertAdjacentHTML('beforebegin', cardHTML);
@@ -380,7 +362,6 @@ function updateCallsDisplay(calls = []) {
                 callsList.insertAdjacentHTML('beforeend', cardHTML);
             }
             
-            // Add play event listener to audio element
             if (call.audio_url) {
                 const newCard = callsList.querySelector(`[data-call-id="${call.id}"]`);
                 const audioElement = newCard.querySelector('audio');
@@ -393,17 +374,14 @@ function updateCallsDisplay(calls = []) {
                 }
             }
         } else {
-            // Update existing card's classes without recreating it
             callCard.className = `call-card ${isNew ? 'new' : ''} ${isHighlighted ? 'highlighted' : ''}`;
             
-            // Ensure correct position
             const existingCards = Array.from(callsList.querySelectorAll('.call-card'));
             const currentIndex = existingCards.indexOf(callCard);
             if (currentIndex !== index && existingCards[index]) {
                 callsList.insertBefore(callCard, existingCards[index]);
             }
             
-            // Make sure audio element has play event listener
             if (call.audio_url) {
                 const audioElement = callCard.querySelector('audio');
                 if (audioElement && !audioElement.hasAttribute('data-listener-attached')) {
@@ -455,7 +433,6 @@ async function checkForNewCalls() {
             checkFinishEl.textContent = 'Check Finish: Processing...';
         }
         
-        // Update queue status
         const queueSize = data.queue_size || 0;
         queueStatusEl.textContent = `Queue: ${queueSize}`;
         if (queueSize > 0) {
