@@ -1,4 +1,4 @@
-import logging
+threadingimport logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 import re
@@ -521,15 +521,17 @@ def delete_fire_call(call_id):
 
 @app.route('/api/state-filter', methods=['POST'])
 def update_state_filter():
-    """Update which states to monitor"""
+    """Update which states to monitor (max 4)"""
     global selected_states
     
     try:
         data = request.get_json()
-        selected_states = set(states[:4])
+        states = data.get('states', [])[:4]  # Limit to first 4 states
         
         with states_lock:
             selected_states = set(states)
+            if len(selected_states) > 4:  # Double-check cap
+                selected_states = set(list(selected_states)[:4])
         
         # Remove calls from queue that are no longer in selected states
         with queue_lock:
@@ -560,10 +562,10 @@ def update_state_filter():
         return jsonify({'success': False, 'error': str(e)}), 400
 
 from apscheduler.schedulers.background import BackgroundScheduler
-scheduler = BackgroundScheduler({'apscheduler.job_defaults.max_instances': 2})
-scheduler.add_job(func=scrape_dispatch_calls, trigger="interval", seconds=60, max_instances=2)
-scheduler.add_job(func=process_call_queue, trigger="interval", seconds=00, max_instances=3)
-scheduler.add_job(func=recheck_recent_calls, trigger="interval", seconds=60, max_instances=2)
+scheduler = BackgroundScheduler({'apscheduler.job_defaults.max_instances': 3})
+scheduler.add_job(func=scrape_dispatch_calls, trigger="interval", seconds=60, max_instances=3)
+scheduler.add_job(func=process_call_queue, trigger="interval", seconds=20, max_instances=3)
+scheduler.add_job(func=recheck_recent_calls, trigger="interval", seconds=120, max_instances=3)
 scheduler.start()
 
 # Run initial scan in background thread so app can start
