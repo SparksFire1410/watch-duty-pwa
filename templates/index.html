@@ -1,12 +1,12 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <link rel="manifest" href="/static/manifest.json">
-    <meta name="apple-mobile-web-app-capable" content="yes">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Watch Duty - Fire Call Monitor</title>
+    <meta name="mobile-web-app-capable" content="yes">
+    <title>ED4WD</title>
     <link rel="stylesheet" href="/static/style.css">
+    <link rel="manifest" href="/static/manifest.json">
     <link rel="icon" type="image/png" href="/static/icon-192.png">
 </head>
 <body>
@@ -14,7 +14,7 @@
     
     <div class="container">
         <header>
-            <h1>🔥 Edispatches monitor for Watch Duty - Select up to 4 states</h1>
+            <h1>🔥 Edispatches monitor for Watch Duty</h1>
             <div class="status">
                 <span id="status">Checking...</span>
                 <span id="checkStart">Check Start: Never</span>
@@ -26,13 +26,13 @@
         <div class="controls" id="controlsSection">
             <div class="filter-section">
                 <div class="filter-header">
-                    <h3>State Filter</h3>
-                    <button class="collapse-btn" onclick="toggleStateFilter()" id="collapseBtn">
+                    <h3>State Filter (Select up to 4 states)</h3>
+                    <button class="collapse-btn" id="collapseBtn">
                         <span id="collapseIcon">▼</span> Minimize
                     </button>
                 </div>
                 <div class="filter-content" id="filterContent">
-                    <div class="state-grid" id="stateGrid"></div>
+                 <div class="state-grid" id="stateGrid"></div>
                 </div>
             </div>
         </div>
@@ -44,5 +44,6 @@
     </div>
 
     <script src="/static/app.js"></script>
+    <script src="/static/sw.js"></script>
 </body>
 </html>

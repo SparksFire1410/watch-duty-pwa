@@ -1,4 +1,3 @@
-import threading
 import logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
@@ -12,89 +11,48 @@ from flask_cors import CORS
 from bs4 import BeautifulSoup
 import requests
 from apscheduler.schedulers.background import BackgroundScheduler
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
+import pytz
+import time
 from faster_whisper import WhisperModel
 from pydub import AudioSegment
 
 app = Flask(__name__)
 CORS(app)
 
-@app.route('/api/health')
-def health():
-    return jsonify({
-        'status': 'running',
-        'check_start': check_start_time,
-        'check_finish': check_finish_time,
-        'fire_calls_count': len(fire_calls)
-    })
-
-whisper_model = None  # Will load on first use
-
-
+whisper_model = None
 fire_calls = []
 check_start_time = None
 check_finish_time = None
 processed_audio_urls = set()
 processing_lock = threading.Lock()
-call_queue = deque()  # Queue for calls waiting to be processed
+call_queue = deque()
 queue_lock = threading.Lock()
-selected_states = set()  # Will be populated with all states by default
+selected_states = set(["New Jersey", "New York", "Texas", "Illinois"])
 states_lock = threading.Lock()
-state_call_tracking = {}  # Track calls by state: {state: [(timestamp, call_info), ...]}
-MAX_CALLS_PER_STATE = 20  # Only keep last 20 calls per state in queue
+state_call_tracking = {}
+MAX_CALLS_PER_STATE = 20
 
 FIRE_KEYWORDS = [
-    # Grass fire variants
-    r'grass[\s_-]?fire',
-    r'grass[\s_-]?on[\s_-]?fire',
-    
-    # Brush fire variants
-    r'brush[\s_-]?fire',
-    r'brush[\s_-]?on[\s_-]?fire',
-    
-    # Wildland/wildfire variants
-    r'wildland[\s_-]?fire',
-    r'wild[\s_-]?fire',
-    
-    # Natural cover fire
+    r'grass[\s_-]?fire', r'grass[\s_-]?on[\s_-]?fire',
+    r'brush[\s_-]?fire', r'brush[\s_-]?on[\s_-]?fire',
+    r'wildland[\s_-]?fire', r'wild[\s_-]?fire',
     r'natural[\s_-]?cover[\s_-]?fire',
-    
-    # Vegetation fire variants
-    r'vegetation[\s_-]?fire',
-    r'vegetation[\s_-]?on[\s_-]?fire',
-    
-    # Pasture fire variants
-    r'pasture[\s_-]?fire',
-    r'pasture[\s_-]?on[\s_-]?fire',
-    
-    # Hay fire variants
-    r'hay[\s_-]?field[\s_-]?fire',
-    r'hay[\s_-]?fire',
-    r'hay[\s_-]?on[\s_-]?fire',
-    
-    # Ditch fire variants
-    r'ditch[\s_-]?fire',
-    r'ditch[\s_-]?on[\s_-]?fire',
-    
-    # Tree fire variants
-    r'trees?[\s_-]?on[\s_-]?fire',
-    r'tree[\s_-]?fire',
-    
-    # Bush fire variants
-    r'bushes?[\s_-]?on[\s_-]?fire',
-    r'bush[\s_-]?on[\s_-]?fire',
-    r'bush[\s_-]?fire',
-    
-    # Controlled burn
+    r'vegetation[\s_-]?fire', r'vegetation[\s_-]?on[\s_-]?fire',
+    r'pasture[\s_-]?fire', r'pasture[\s_-]?on[\s_-]?fire',
+    r'hay[\s_-]?field[\s_-]?fire', r'hay[\s_-]?fire', r'hay[\s_-]?on[\s_-]?fire',
+    r'ditch[\s_-]?fire', r'ditch[\s_-]?on[\s_-]?fire',
+    r'trees?[\s_-]?on[\s_-]?fire', r'tree[\s_-]?fire',
+    r'bushes?[\s_-]?on[\s_-]?fire', r'bush[\s_-]?on[\s_-]?fire', r'bush[\s_-]?fire',
     r'controlled[\s_-]?burn',
-    
-    # Smoke variants
-    r'\bsmoke\b',
-    r'\bsmoking\b',
-    
-    # Structure in danger
-    r'structures?[\s_-]?in[\s_-]?danger',
-    r'structures?[\s_-]?threatened'
+    r'\bsmoke\b', r'\bsmoking\b',
+    r'structures?[\s_-]?in[\s_-]?danger', r'structures?[\s_-]?threatened',
+    r'outside[\s_-]?fire',
+    r'out[\s_-]?side[\s_-]?fire',
+    r'fire[\s_-]?outside',
+    r'fire[\s_-]?out[\s_-]?side',
+    r'\bufo\b',
+    r'unidentified[\s_-]?flying[\s_-]?objects'
 ]
 
 US_STATES = {
@@ -113,9 +71,6 @@ US_STATES = {
     "WI": "Wisconsin", "WY": "Wyoming"
 }
 
-# Initialize selected_states with all states
-selected_states = set(["New Jersey", "New York", "Texas", "Illinois"])  # Default to 4 states for startup
-
 def extract_state_from_location(location):
     parts = location.split(',')
     if len(parts) >= 2:
@@ -126,44 +81,30 @@ def extract_state_from_location(location):
 def is_fire_call_in_transcript(transcript):
     if not transcript:
         return False
-    
     transcript_lower = transcript.lower()
-    
-    # Check all fire keywords
     for pattern in FIRE_KEYWORDS:
         if re.search(pattern, transcript_lower):
             return True
-    
-    # Special case: "out of control burn" (any variation)
     if re.search(r'out[\s_-]?of[\s_-]?control[\s_-]?burn', transcript_lower):
         return True
-    
     return False
 
 def transcribe_audio_with_whisper(audio_url, max_seconds=25):
-    """Transcribe audio, but only process first max_seconds (default 25) for speed"""
     global whisper_model
     if whisper_model is None:
-        print("Loading Whisper model...")
+        logging.info("Loading Whisper model...")
         whisper_model = WhisperModel("small", device="cpu", compute_type="int8")
-        print("Whisper model loaded successfully")
-        
+        logging.info("Whisper model loaded successfully")
     tmp_path = None
     trimmed_path = None
-    
     try:
         response = requests.get(audio_url, timeout=30)
         response.raise_for_status()
-        
         with tempfile.NamedTemporaryFile(suffix='.mp3', delete=False) as tmp_file:
             tmp_file.write(response.content)
             tmp_path = tmp_file.name
-        
-        # Load audio and trim to max_seconds for faster transcription
         audio = AudioSegment.from_mp3(tmp_path)
-        max_ms = max_seconds * 1000  # Convert to milliseconds
-        
-        # Only process if audio is longer than max_seconds, otherwise use original
+        max_ms = max_seconds * 1000
         if len(audio) > max_ms:
             trimmed_audio = audio[:max_ms]
             with tempfile.NamedTemporaryFile(suffix='.mp3', delete=False) as trimmed_file:
@@ -172,26 +113,16 @@ def transcribe_audio_with_whisper(audio_url, max_seconds=25):
             transcribe_file = trimmed_path
         else:
             transcribe_file = tmp_path
-        
-        # Transcribe the (possibly trimmed) audio
         segments, info = whisper_model.transcribe(transcribe_file, beam_size=5, language="en")
-        
-        transcript_parts = []
-        for segment in segments:
-            transcript_parts.append(segment.text)
-        
+        transcript_parts = [segment.text for segment in segments]
         transcript = " ".join(transcript_parts).strip()
-        
-        # Cleanup temp files
         if tmp_path and os.path.exists(tmp_path):
             os.unlink(tmp_path)
         if trimmed_path and os.path.exists(trimmed_path):
             os.unlink(trimmed_path)
-            
         return transcript
-        
     except Exception as e:
-        print(f"Transcription error for {audio_url}: {e}")
+        logging.error(f"Transcription error for {audio_url}: {str(e)}")
         if tmp_path and os.path.exists(tmp_path):
             os.unlink(tmp_path)
         if trimmed_path and os.path.exists(trimmed_path):
@@ -199,220 +130,144 @@ def transcribe_audio_with_whisper(audio_url, max_seconds=25):
         return None
 
 def is_ems_only_agency(agency_name):
-    """
-    CONSERVATIVE filtering: Only skip agencies that are CLEARLY and OBVIOUSLY EMS-only.
-    When in doubt, let it through to the queue for transcription.
-    
-    Returns True if agency should be skipped (clearly EMS-only).
-    Returns False if agency might be fire-related or is ambiguous.
-    """
     agency_lower = agency_name.lower()
-    
-    # Fire-related keywords that indicate fire department involvement
     fire_keywords = [
-        r'\bfire\b',
-        r'\bfd\b',
-        r'\bvfd\b',
-        r'fire[-_\s]?dept',
-        r'fire[-_\s]?department',
-        r'fire[-_\s]?rescue',
-        r'fire[-_\s]?ems',
+        r'\bfire\b', r'\bfd\b', r'\bvfd\b',
+        r'fire[-_\s]?dept', r'fire[-_\s]?department',
+        r'fire[-_\s]?rescue', r'fire[-_\s]?ems',
         r'fire[-_\s]?district'
     ]
-    
-    # Check if agency has fire-related keywords
     has_fire = any(re.search(pattern, agency_lower) for pattern in fire_keywords)
-    
     if has_fire:
-        return False  # Has fire department, don't skip
-    
-    # VERY STRICT EMS-only patterns - only filter the most obvious cases
-    # Examples: "County_EMS", "Ambulance_Service", "MedicUnit", "Paramedic_Response"
-    # Will NOT match: "Station_20", "Saltillo_9", "AntrimAmb" (ambiguous cases)
+        return False
     obvious_ems_patterns = [
-        r'(^|[-_\s])ems([-_\s]|$)',           # "EMS" as standalone word with separators
-        r'(^|[-_\s])ambulance([-_\s]|$)',     # "Ambulance" as standalone word
-        r'(^|[-_\s])medic([-_\s]|$)',         # "Medic" as standalone word (not "medical")
-        r'(^|[-_\s])paramedic',               # "Paramedic" prefix
-        r'(^|[-_\s])emt([-_\s]|$)',           # "EMT" as standalone word
-        r'medical[-_\s]service',              # "Medical Service" or "Medical_Service"
-        r'emergency[-_\s]medical[-_\s]service' # "Emergency Medical Service"
+        r'(^|[-_\s])ems([-_\s]|$)', r'(^|[-_\s])ambulance([-_\s]|$)',
+        r'(^|[-_\s])medic([-_\s]|$)', r'(^|[-_\s])paramedic',
+        r'(^|[-_\s])emt([-_\s]|$)', r'medical[-_\s]service',
+        r'emergency[-_\s]medical[-_\s]service'
     ]
-    
-    # Only skip if agency has OBVIOUS EMS-only patterns
     has_obvious_ems = any(re.search(pattern, agency_lower) for pattern in obvious_ems_patterns)
-    
-    if has_obvious_ems:
-        return True  # Clearly EMS-only, skip transcription
-    
-    # Default: When in doubt, let it through for transcription
-    return False
+    return has_obvious_ems
 
 def cleanup_old_calls():
-    """Remove calls older than 1 hour, but always keep the last 5 calls"""
     global fire_calls
-    
     if len(fire_calls) <= 5:
         return
-    
     try:
-        now = datetime.utcnow()
+        now = datetime.now(pytz.UTC)
         one_hour_ago = now - timedelta(hours=1)
-        
-        # Separate calls into old and recent
         old_calls = []
         recent_calls = []
-        
         for call in fire_calls:
             if 'first_detected' in call:
-                first_detected = datetime.fromisoformat(call['first_detected'].replace('Z', '+00:00'))
+                first_detected = datetime.fromisoformat(call['first_detected'].replace('Z', '+00:00')).replace(tzinfo=pytz.UTC)
                 if first_detected < one_hour_ago:
                     old_calls.append(call)
                 else:
                     recent_calls.append(call)
-        
-        # Keep recent calls + the last 5 total (even if old)
         calls_to_keep = recent_calls + fire_calls[-5:]
-        
-        # Remove duplicates while preserving order
         seen_ids = set()
         unique_calls = []
         for call in calls_to_keep:
             if call['id'] not in seen_ids:
                 seen_ids.add(call['id'])
                 unique_calls.append(call)
-        
         removed_count = len(fire_calls) - len(unique_calls)
         if removed_count > 0:
             fire_calls = unique_calls
-            print(f"Cleaned up {removed_count} old calls (keeping {len(fire_calls)} calls)")
-    
+            logging.info(f"Cleaned up {removed_count} old calls (keeping {len(fire_calls)} calls)")
     except Exception as e:
-        print(f"Error during cleanup: {e}")
+        logging.error(f"Error during cleanup: {str(e)}")
 
 def process_call_queue():
-    """Process calls from the queue"""
     global fire_calls
-    
     if not processing_lock.acquire(blocking=False):
         return
-    
     try:
         processed_count = 0
-        max_per_cycle = 5  # Process up to 5 calls per cycle
-        
+        max_per_cycle = 5
         while processed_count < max_per_cycle:
             with queue_lock:
                 if not call_queue:
                     break
                 call_info = call_queue.popleft()
-            
-            print(f"Processing queued call from {call_info['agency']} at {call_info['location']}")
-            
-            # Transcribe only first 25 seconds for speed
+            logging.info(f"Processing queued call from {call_info['agency']} at {call_info['location']}")
             transcript = transcribe_audio_with_whisper(call_info['audio_url'], max_seconds=25)
-            
-            # Mark as processed
             processed_audio_urls.add(call_info['audio_url'])
-            
-            if transcript:
-                if is_fire_call_in_transcript(transcript):
-                    # Check if this call already exists
-                    call_id = call_info['audio_url']
-                    existing_call = next((c for c in fire_calls if c['id'] == call_id), None)
-                    
-                    if existing_call:
-                        # Update existing call with new transcript if different
-                        if existing_call.get('transcript') != transcript:
-                            existing_call['transcript'] = transcript
-                            print(f"🔄 UPDATED: {call_info['agency']} - {call_info['location']}")
-                            print(f"   New transcript (25s): {transcript[:100]}...")
-                    else:
-                        # Add new call
-                        call_data = {
-                            'audio_url': call_info['audio_url'],  # Keep full audio for playback
-                            'agency': call_info['agency'],
-                            'location': call_info['location'],
-                            'state': call_info['state'],
-                            'timestamp': call_info['timestamp'],
-                            'transcript': transcript,
-                            'first_detected': datetime.utcnow().isoformat() + 'Z',
-                            'id': call_info['audio_url']
-                        }
-                        
-                        fire_calls.insert(0, call_data)
-                        print(f"🔥 FIRE CALL DETECTED: {call_info['agency']} - {call_info['location']}")
-                        print(f"   Transcript (25s): {transcript[:100]}...")
+            if transcript and is_fire_call_in_transcript(transcript):
+                call_id = call_info['audio_url']
+                existing_call = next((c for c in fire_calls if c['id'] == call_id), None)
+                if existing_call:
+                    if existing_call.get('transcript') != transcript:
+                        existing_call['transcript'] = transcript
+                        logging.info(f"🔄 UPDATED: {call_info['agency']} - {call_info['location']}")
+                        logging.info(f"   New transcript (25s): {transcript[:100]}...")
                 else:
-                    # Log rejected calls for debugging
-                    print(f"❌ No fire keywords detected in {call_info['agency']}")
-                    print(f"   Transcript: {transcript[:150]}...")
-            
+                    call_data = {
+                        'audio_url': call_info['audio_url'],
+                        'agency': call_info['agency'],
+                        'location': call_info['location'],
+                        'state': call_info['state'],
+                        'timestamp': call_info['timestamp'],
+                        'transcript': transcript,
+                        'first_detected': datetime.now(pytz.UTC).isoformat() + 'Z',
+                        'id': call_info['audio_url'],
+                        'acknowledged': False
+                    }
+                    fire_calls.insert(0, call_data)
+                    logging.info(f"🔥 FIRE CALL DETECTED: {call_info['agency']} - {call_info['location']}")
+                    logging.info(f"   Transcript (25s): {transcript[:100]}...")
+            else:
+                logging.info(f"❌ No fire keywords detected in {call_info['agency']}")
+                logging.info(f"   Transcript: {transcript[:150]}...")
             processed_count += 1
-        
+            time.sleep(1)
         if processed_count > 0:
             with queue_lock:
                 queue_size = len(call_queue)
-            print(f"Queue processing: {processed_count} calls processed, {queue_size} remaining in queue")
-            
+            logging.info(f"Queue processing: {processed_count} calls processed, {queue_size} remaining in queue")
     except Exception as e:
-        print(f"Error processing queue: {e}")
+        logging.error(f"Error processing queue: {str(e)}")
     finally:
         processing_lock.release()
 
 def recheck_recent_calls():
-    """Re-check audio for calls detected in the last 10 minutes to see if full audio is available"""
     global fire_calls
-    
     if not processing_lock.acquire(blocking=False):
-        print("Re-check skipped - scan in progress")
+        logging.info("Re-check skipped - scan in progress")
         return
-    
     try:
-        now = datetime.utcnow()
+        now = datetime.now(pytz.UTC)
         cutoff_time = now - timedelta(minutes=10)
-        
         updated_count = 0
-        
         for call in fire_calls:
-            # Check if this call is less than 10 minutes old
             if 'first_detected' in call:
-                first_detected = datetime.fromisoformat(call['first_detected'].replace('Z', '+00:00'))
+                first_detected = datetime.fromisoformat(call['first_detected'].replace('Z', '+00:00')).replace(tzinfo=pytz.UTC)
                 if first_detected > cutoff_time:
-                    # Re-transcribe to check for updated audio
-                    print(f"Re-checking audio for {call['agency']} at {call['location']}")
+                    logging.info(f"Re-checking audio for {call['agency']} at {call['location']}")
                     new_transcript = transcribe_audio_with_whisper(call['audio_url'])
-                    
-                    # Update if we got a better/different transcript
                     if new_transcript and new_transcript != call.get('transcript', ''):
                         old_length = len(call.get('transcript', ''))
                         new_length = len(new_transcript)
-                        
                         if new_length > old_length:
                             call['transcript'] = new_transcript
                             updated_count += 1
-                            print(f"✓ Updated transcript for {call['agency']} ({old_length} -> {new_length} chars)")
-        
+                            logging.info(f"✓ Updated transcript for {call['agency']} ({old_length} -> {new_length} chars)")
         if updated_count > 0:
-            print(f"Re-check complete. Updated {updated_count} calls with better audio")
+            logging.info(f"Re-check complete. Updated {updated_count} calls with better audio")
         else:
-            print("Re-check complete. No updates needed")
-        
-        # Clean up old calls after re-check
+            logging.info("Re-check complete. No updates needed")
         cleanup_old_calls()
-            
     except Exception as e:
-        print(f"Error during re-check: {e}")
+        logging.error(f"Error during re-check: {str(e)}")
     finally:
         processing_lock.release()
 
 def scrape_dispatch_calls(max_rows=10, is_initial_scan=False):
-    logging.info("Fetching dispatch data...")
-    """Scan for new calls - keep only last 20 calls per state (timezone-safe)"""
     global check_start_time, check_finish_time, processed_audio_urls, state_call_tracking
+    logging.info("Fetching dispatch data...")
     try:
-        # Set check start time at the start of the scan
-        check_start_time = datetime.now(timezone.utc).isoformat() + 'Z'
+        check_start_time = datetime.now(pytz.UTC).isoformat() + 'Z'
         url = "https://call-log-api.edispatches.com/calls/"
         response = requests.get(url, timeout=30)
         response.raise_for_status()
@@ -420,10 +275,9 @@ def scrape_dispatch_calls(max_rows=10, is_initial_scan=False):
         table = soup.find('table')
         if table:
             rows = table.find_all('tr')
-            scan_limit = max_rows
+            scan_limit = max_rows if not is_initial_scan else 20
             if is_initial_scan:
-                print(f"Initial scan: checking last {scan_limit} calls (max 20 per selected state)...")
-            # Temp storage for this scan
+                logging.info(f"Initial scan: checking last {scan_limit} calls (max 20 per selected state)...")
             scan_calls_by_state = {}
             for row in rows[:scan_limit]:
                 cols = row.find_all('td')
@@ -435,20 +289,19 @@ def scrape_dispatch_calls(max_rows=10, is_initial_scan=False):
                         location = cols[2].text.strip()
                         timestamp_str = cols[3].text.strip()
                         state = extract_state_from_location(location)
-                        # Check if state is selected
                         with states_lock:
                             state_is_selected = state in selected_states
                         if not state_is_selected:
+                            processed_audio_urls.add(audio_url)  # Skip and mark as processed
+                            logging.info(f"Skipped call from {agency} in {state} - not in selected states")
                             continue
-                        # Skip EMS-only agencies
                         if is_ems_only_agency(agency):
                             processed_audio_urls.add(audio_url)
                             continue
-                        # Parse timestamp for sorting
                         try:
-                            call_time = datetime.strptime(timestamp_str, '%Y-%m-%d %H:%M:%S')
+                            call_time = datetime.strptime(timestamp_str, '%Y-%m-%d %H:%M:%S').replace(tzinfo=pytz.UTC)
                         except:
-                            call_time = datetime.utcnow()
+                            call_time = datetime.now(pytz.UTC)
                         call_info = {
                             'audio_url': audio_url,
                             'agency': agency,
@@ -460,7 +313,6 @@ def scrape_dispatch_calls(max_rows=10, is_initial_scan=False):
                         if state not in scan_calls_by_state:
                             scan_calls_by_state[state] = []
                         scan_calls_by_state[state].append(call_info)
-            # Rebuild queue: keep only last 20 calls per state
             with queue_lock:
                 call_queue.clear()
                 for state, calls in scan_calls_by_state.items():
@@ -473,13 +325,14 @@ def scrape_dispatch_calls(max_rows=10, is_initial_scan=False):
                 queue_size = len(call_queue)
                 state_call_tracking = scan_calls_by_state
             if queue_size > 0:
-                print(f"Scan complete. Queue rebuilt: {queue_size} calls (max 20 per state)")
+                logging.info(f"Scan complete. Queue rebuilt: {queue_size} calls (max 20 per state)")
             else:
-                print(f"Scan complete. No new calls found")
-        check_finish_time = datetime.now(timezone.utc).isoformat() + 'Z'
+                logging.info(f"Scan complete. No new calls found")
+        check_finish_time = datetime.now(pytz.UTC).isoformat() + 'Z'
     except Exception as e:
-        print(f"Error scraping dispatch calls: {e}")
-        check_finish_time = datetime.utcnow().isoformat() + 'Z'
+        logging.error(f"Error scraping dispatch calls: {str(e)}")
+    finally:
+        check_finish_time = datetime.now(pytz.UTC).isoformat() + 'Z'
 
 @app.route('/')
 def index():
@@ -489,15 +342,26 @@ def index():
     response.headers['Expires'] = '0'
     return response
 
+@app.route('/api/health', methods=['GET'])
+def health_check():
+    global fire_calls, check_start_time, check_finish_time
+    with queue_lock:
+        queue_size = len(call_queue)
+    return jsonify({
+        'status': 'running',
+        'check_start': check_start_time or datetime.now(pytz.UTC).isoformat() + 'Z',
+        'check_finish': check_finish_time or datetime.now(pytz.UTC).isoformat() + 'Z',
+        'queue_size': queue_size
+    })
+
 @app.route('/api/fire-calls')
 def get_fire_calls():
     with queue_lock:
         queue_size = len(call_queue)
-    
     return jsonify({
         'calls': fire_calls,
-        'check_start': check_start_time,
-        'check_finish': check_finish_time,
+        'check_start': check_start_time or datetime.now(pytz.UTC).isoformat() + 'Z',
+        'check_finish': check_finish_time or datetime.now(pytz.UTC).isoformat() + 'Z',
         'queue_size': queue_size
     })
 
@@ -505,16 +369,11 @@ def get_fire_calls():
 def get_states():
     return jsonify({'states': list(US_STATES.values())})
 
-
-
 @app.route('/api/fire-calls/<path:call_id>', methods=['DELETE'])
 def delete_fire_call(call_id):
     global fire_calls
-    
-    # Find and remove the call with the matching ID
     original_count = len(fire_calls)
     fire_calls = [call for call in fire_calls if call['id'] != call_id]
-    
     if len(fire_calls) < original_count:
         return jsonify({'success': True, 'message': 'Call dismissed'})
     else:
@@ -522,54 +381,51 @@ def delete_fire_call(call_id):
 
 @app.route('/api/state-filter', methods=['POST'])
 def update_state_filter():
-    """Update which states to monitor (max 4)"""
     global selected_states
-    
     try:
         data = request.get_json()
-        states = data.get('states', [])[:4]  # Limit to first 4 states
-        
+        states = data.get('states', [])[:4]
         with states_lock:
             selected_states = set(states)
-            if len(selected_states) > 4:  # Double-check cap
+            if len(selected_states) > 4:
                 selected_states = set(list(selected_states)[:4])
-        
-        # Remove calls from queue that are no longer in selected states
         with queue_lock:
             filtered_queue = deque()
             removed_count = 0
-            
             for call_info in call_queue:
                 if call_info['state'] in selected_states:
                     filtered_queue.append(call_info)
                 else:
                     removed_count += 1
-            
             call_queue.clear()
             call_queue.extend(filtered_queue)
             queue_size = len(call_queue)
-        
         print(f"State filter updated: {len(selected_states)} states selected, removed {removed_count} calls from queue")
-        
         return jsonify({
-            'success': True, 
+            'success': True,
             'selected_count': len(selected_states),
             'queue_size': queue_size,
             'removed_from_queue': removed_count
         })
-        
     except Exception as e:
         print(f"Error updating state filter: {e}")
         return jsonify({'success': False, 'error': str(e)}), 400
 
-from apscheduler.schedulers.background import BackgroundScheduler
+@app.route('/api/fire-calls/<path:call_id>/acknowledge', methods=['POST'])
+def acknowledge_fire_call(call_id):
+    global fire_calls
+    for call in fire_calls:
+        if call['id'] == call_id:
+            call['acknowledged'] = True
+            return jsonify({'success': True, 'message': 'Call acknowledged'})
+    return jsonify({'success': False, 'message': 'Call not found'}), 404
+    
 scheduler = BackgroundScheduler({'apscheduler.job_defaults.max_instances': 3})
 scheduler.add_job(func=scrape_dispatch_calls, trigger="interval", seconds=60, max_instances=3)
-scheduler.add_job(func=process_call_queue, trigger="interval", seconds=20, max_instances=3)
+scheduler.add_job(func=process_call_queue, trigger="interval", seconds=30, max_instances=3)
 scheduler.add_job(func=recheck_recent_calls, trigger="interval", seconds=120, max_instances=3)
 scheduler.start()
 
-# Run initial scan in background thread so app can start
 logging.info("Starting initial scan of last 20 calls...")
 threading.Thread(target=lambda: scrape_dispatch_calls(max_rows=20, is_initial_scan=True), daemon=True).start()
 
