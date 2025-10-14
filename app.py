@@ -430,4 +430,4 @@ logging.info("Starting initial scan of last 20 calls...")
 threading.Thread(target=lambda: scrape_dispatch_calls(max_rows=20, is_initial_scan=True), daemon=True).start()
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000, debug=False)
+    app.run(host='0.0.0.0', port=7860, debug=False)
