@@ -421,11 +421,42 @@ def acknowledge_fire_call(call_id):
     return jsonify({'success': False, 'message': 'Call not found'}), 404
     
 scheduler = BackgroundScheduler({'apscheduler.job_defaults.max_instances': 3})
+# ... (all your existing code up to the scheduler definition)
+
+scheduler = BackgroundScheduler({'apscheduler.job_defaults.max_instances': 3})
+
+# Define the utility function inside the main script scope, 
+# or keep it as you had it, but ensure it's defined before it's added.
+def initial_scan_job(scheduler_ref):
+    # This runs the initial scan logic once
+    logging.info("Starting initial scan (one-time job)...")
+    scrape_dispatch_calls(max_rows=20, is_initial_scan=True)
+    # Remove this job after it runs
+    try:
+        scheduler_ref.remove_job('initial_scan')
+        logging.info("Initial scan complete and job removed.")
+    except Exception as e:
+        logging.warning(f"Failed to remove initial_scan job: {e}")
+
+# 1. Add recurring jobs
 scheduler.add_job(func=scrape_dispatch_calls, trigger="interval", seconds=60, max_instances=3)
 scheduler.add_job(func=process_call_queue, trigger="interval", seconds=30, max_instances=3)
 scheduler.add_job(func=recheck_recent_calls, trigger="interval", seconds=120, max_instances=3)
+
+# 2. Add the one-time initial scan job
+from datetime import datetime
+scheduler.add_job(
+    func=initial_scan_job, 
+    id='initial_scan', 
+    name='initial_scan', 
+    args=[scheduler], 
+    trigger='date', 
+    run_date=datetime.now()
+)
+
+# 3. Start the scheduler once
+logging.info("Starting BackgroundScheduler...")
 scheduler.start()
 
-logging.info("Starting initial scan of last 20 calls...")
-threading.Thread(target=lambda: scrape_dispatch_calls(max_rows=20, is_initial_scan=True), daemon=True).start()
-
+# Everything is now configured correctly for Gunicorn to run 'app:app'
+# and the background tasks will execute robustly.
