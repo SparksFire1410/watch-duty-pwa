@@ -6,5 +6,5 @@ RUN pip install --no-cache-dir -r requirements.txt
 ENV HF_HOME=/app/.cache
 RUN mkdir -p /app/.cache && chmod -R 777 /app/.cache
 COPY . .
-EXPOSE 5000
-CMD ["python", "app.py"]
+EXPOSE 8080 # Changed from 5000 to 8080 (the common default for $PORT)
+CMD ["gunicorn", "--bind", "0.0.0.0:$PORT", "--workers", "2", "--threads", "4", "app:app"] # Changed to use Gunicorn

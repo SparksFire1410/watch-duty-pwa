@@ -59,6 +59,7 @@ fsspec==2025.9.0
     # via huggingface-hub
 h11==0.16.0
     # via httpcore
+gunicorn==22.0.0
 htmldate==1.9.3
     # via trafilatura
 httpcore==1.0.9
